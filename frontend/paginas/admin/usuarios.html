@@ -50,7 +50,7 @@
 		async function cargarUsuarios() {
 			try {
 				const response = await apiCliente.get('/usuarios');
-				usuarios = response.datos.datos || response.datos || [];
+				usuarios = response.datos?.usuarios || [];
 				mostrarUsuarios();
 			} catch (error) {
 				console.error('Error al cargar usuarios:', error);
