@@ -2,24 +2,26 @@
  * Script para gestionar el header dinámicamente
  */
 
-(function() {
-	// Calcular ruta relativa basada en la ubicación actual
+;(function() {
 	function calcularRutaRelativa(targetFile) {
 		const currentPath = window.location.pathname;
-		const pagePath = currentPath.substring(currentPath.indexOf('/paginas/'));
-		const depth = (pagePath.match(/\//g) || []).length - 2; // -2 porque /paginas/ cuenta como 2
-		
+		const index = currentPath.indexOf('/paginas/');
+		if (index === -1) {
+			return targetFile;
+		}
+		const pagePath = currentPath.substring(index);
+		const depth = (pagePath.match(/\//g) || []).length - 2;
+
 		let prefix = '';
 		if (depth > 0) {
 			prefix = '../'.repeat(depth);
 		} else if (depth === 0) {
 			prefix = './';
 		}
-		
+
 		return prefix + targetFile;
 	}
 
-	// Configurar enlaces con rutas relativas
 	function configurarEnlaces() {
 		document.querySelectorAll('[data-link]').forEach(link => {
 			const targetFile = link.getAttribute('data-link');
@@ -27,11 +29,9 @@
 		});
 	}
 
-	// Actualizar navegación según estado de autenticación
 	function actualizarHeader() {
-		const usuario = Auth.obtenerUsuario();
-		
-		// Elementos
+		const usuario = typeof Auth !== 'undefined' ? Auth.obtenerUsuario() : null;
+
 		const usuarioNoAuth = document.getElementById('usuarioNoAutenticado');
 		const usuarioAuth = document.getElementById('usuarioAutenticado');
 		const navUsuarioAuth = document.getElementById('navUsuarioAutenticado');
@@ -41,17 +41,14 @@
 		const nombreUsuario = document.getElementById('nombreUsuario');
 		const btnCerrarSesion = document.getElementById('btnCerrarSesion');
 
-		// Configurar rutas relativas
 		configurarEnlaces();
 
 		if (usuario) {
-			// Usuario autenticado
 			if (usuarioNoAuth) usuarioNoAuth.classList.add('oculto');
 			if (usuarioAuth) usuarioAuth.classList.remove('oculto');
 			if (navUsuarioAuth) navUsuarioAuth.classList.remove('oculto');
 			if (nombreUsuario) nombreUsuario.textContent = `${usuario.nombre} ${usuario.apellido}`;
 
-			// Mostrar navegación según rol
 			if (usuario.rol === CONFIG.ROLES.ADMINISTRADOR) {
 				if (navAdministrador) navAdministrador.classList.remove('oculto');
 				if (navOrganizador) navOrganizador.classList.remove('oculto');
@@ -61,7 +58,6 @@
 				if (navTaquilla) navTaquilla.classList.remove('oculto');
 			}
 
-			// Evento cerrar sesión
 			if (btnCerrarSesion) {
 				btnCerrarSesion.onclick = () => {
 					if (confirm('¿Estás seguro de cerrar sesión?')) {
@@ -70,7 +66,6 @@
 				};
 			}
 		} else {
-			// Usuario no autenticado
 			if (usuarioNoAuth) usuarioNoAuth.classList.remove('oculto');
 			if (usuarioAuth) usuarioAuth.classList.add('oculto');
 			if (navUsuarioAuth) navUsuarioAuth.classList.add('oculto');
@@ -79,7 +74,6 @@
 			if (navTaquilla) navTaquilla.classList.add('oculto');
 		}
 
-		// Menu toggle para móviles
 		const menuToggle = document.getElementById('menuToggle');
 		const headerNav = document.getElementById('headerNav');
 		if (menuToggle && headerNav) {
@@ -89,13 +83,23 @@
 		}
 	}
 
-	// Ejecutar cuando el DOM esté listo
-	if (document.readyState === 'loading') {
-		document.addEventListener('DOMContentLoaded', () => {
-			setTimeout(actualizarHeader, 100);
-		});
-	} else {
-		setTimeout(actualizarHeader, 100);
+	function initHeader() {
+		const header = document.getElementById('header');
+		if (!header || header.dataset.initialized) return;
+		header.dataset.initialized = 'true';
+		actualizarHeader();
 	}
+
+	window.Header = window.Header || {};
+	window.Header.init = initHeader;
+
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', initHeader);
+	} else {
+		initHeader();
+	}
+
+	const observer = new MutationObserver(() => initHeader());
+	observer.observe(document.body, { childList: true, subtree: true });
 })();
 

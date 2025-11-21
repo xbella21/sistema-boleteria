@@ -64,6 +64,7 @@
 	<script src="../scripts/api-cliente.js"></script>
 	<script src="../scripts/auth.js"></script>
 	<script src="../scripts/utilidades.js"></script>
+	<script src="../scripts/header.js"></script>
 	<script>
 		// Cargar componentes
 		async function cargarComponente(url, containerId) {
@@ -86,8 +87,19 @@
 				const response = await apiCliente.get('/eventos/proximos?limite=6');
 				const contenedor = document.getElementById('eventosProximos');
 
-				if (response.datos && response.datos.length > 0) {
-					contenedor.innerHTML = response.datos.map(evento => `
+				let eventos = [];
+				const datos = response?.datos;
+
+				if (Array.isArray(datos)) {
+					eventos = datos;
+				} else if (datos && Array.isArray(datos.eventos)) {
+					eventos = datos.eventos;
+				} else if (Array.isArray(response)) {
+					eventos = response;
+				}
+
+				if (eventos.length > 0) {
+					contenedor.innerHTML = eventos.map(evento => `
 						<div class="tarjeta-evento" onclick="window.location.href='./evento-detalle.html?id=${evento.id}'">
 							<img src="${evento.imagen_url || 'https://via.placeholder.com/400x200'}" 
 								 alt="${evento.nombre}" 

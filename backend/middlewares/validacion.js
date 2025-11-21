@@ -128,12 +128,19 @@ const validacionesPaginacion = [
 ];
 
 /**
- * Validaciones de parámetros UUID
+ * Generador de validaciones UUID para un parámetro específico
  */
-const validacionUUID = [
-	param('id').isUUID().withMessage('ID inválido'),
-	manejarErroresValidacion
-];
+function validacionUUIDParam(nombre = 'id') {
+	return [
+		param(nombre).isUUID().withMessage('ID inválido'),
+		manejarErroresValidacion
+	];
+}
+
+/**
+ * Validación por defecto (parametro id)
+ */
+const validacionUUID = validacionUUIDParam();
 
 module.exports = {
 	manejarErroresValidacion,
@@ -142,6 +149,7 @@ module.exports = {
 	validacionesCategoria,
 	validacionesBoleto,
 	validacionesPaginacion,
-	validacionUUID
+	validacionUUID,
+	validacionUUIDParam
 };
 

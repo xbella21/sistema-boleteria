@@ -40,7 +40,7 @@
 
 				<div class="tarjeta mb-lg">
 					<h2>Boletos por Categoría</h2>
-					<div id="categorias Container"></div>
+					<div id="categoriasContainer"></div>
 				</div>
 
 				<div class="tarjeta">
@@ -128,9 +128,10 @@
 			try {
 				mostrarToast('Generando reporte PDF...', 'info');
 				await apiCliente.descargar(`/reportes/ventas/${eventoId}/pdf`, `reporte-evento-${eventoId}.pdf`);
+				mostrarToast('Reporte PDF descargado', 'exito');
 			} catch (error) {
 				console.error('Error:', error);
-				mostrarToast('Error al descargar reporte', 'error');
+				mostrarToast(error.message || 'Error al descargar reporte PDF', 'error');
 			}
 		}
 
@@ -138,9 +139,10 @@
 			try {
 				mostrarToast('Generando reporte Excel...', 'info');
 				await apiCliente.descargar(`/reportes/ventas/${eventoId}/excel`, `reporte-evento-${eventoId}.xlsx`);
+				mostrarToast('Reporte Excel descargado', 'exito');
 			} catch (error) {
 				console.error('Error:', error);
-				mostrarToast('Error al descargar reporte', 'error');
+				mostrarToast(error.message || 'Error al descargar reporte Excel', 'error');
 			}
 		}
 

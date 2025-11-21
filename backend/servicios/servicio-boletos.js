@@ -43,7 +43,9 @@ async function obtenerBoletosPorUsuario(usuarioId) {
  */
 async function obtenerBoletosPorEvento(eventoId) {
 	try {
-		const { data, error } = await supabase
+		const clienteAdmin = supabaseAdmin || supabase;
+
+		const { data, error } = await clienteAdmin
 			.from('boletos')
 			.select(`
 				*,

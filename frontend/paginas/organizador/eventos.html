@@ -65,8 +65,20 @@
 				}
 
 				const response = await apiCliente.get(endpoint);
-				const eventos = response.datos.datos || response.datos || [];
-				
+
+				let eventos = [];
+				const datos = response?.datos;
+
+				if (datos && typeof datos === 'object' && Array.isArray(datos.eventos)) {
+					eventos = datos.eventos;
+				} else if (Array.isArray(datos)) {
+					eventos = datos;
+				} else if (Array.isArray(response)) {
+					eventos = response;
+				} else {
+					console.warn('Estructura inesperada al cargar eventos:', response);
+				}
+
 				mostrarEventos(eventos);
 
 			} catch (error) {
@@ -102,8 +114,11 @@
 					cancelado: 'background: var(--color-error); color: white;'
 				};
 
-				const porcentajeAforo = evento.aforo_maximo > 0 
-					? ((evento.aforo_actual || 0) / evento.aforo_maximo * 100).toFixed(0)
+				const boletosVendidos = evento.total_boletos_vendidos || 0;
+				const aforoRegistrado = evento.aforo_registrado || boletosVendidos;
+				const aforoMaximo = evento.aforo_maximo || 0;
+				const porcentajeAforo = aforoMaximo > 0 
+					? ((aforoRegistrado / aforoMaximo) * 100).toFixed(0)
 					: 0;
 
 				return `
@@ -138,7 +153,7 @@
 								<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 16px; padding: 12px; background: var(--color-fondo); border-radius: 8px;">
 									<div>
 										<div style="font-size: 24px; font-weight: 700; color: var(--color-primario);">
-											${evento.aforo_actual || 0} / ${evento.aforo_maximo}
+											${aforoRegistrado} / ${aforoMaximo}
 										</div>
 										<div style="font-size: 12px; color: var(--color-gris-medio);">Asistentes</div>
 										<div style="width: 100%; background: var(--color-gris-claro); height: 4px; border-radius: 2px; margin-top: 4px;">
@@ -147,7 +162,7 @@
 									</div>
 									<div>
 										<div style="font-size: 24px; font-weight: 700; color: var(--color-secundario);">
-											${evento.total_boletos_vendidos || 0}
+											${boletosVendidos}
 										</div>
 										<div style="font-size: 12px; color: var(--color-gris-medio);">Boletos Vendidos</div>
 									</div>

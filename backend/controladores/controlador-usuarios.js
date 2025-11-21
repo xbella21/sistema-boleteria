@@ -40,7 +40,7 @@ async function obtenerUsuarios(req, res) {
 async function obtenerUsuarioPorId(req, res) {
 	try {
 		const { id } = req.params;
-		const usuario = await servicioUsuarios.obtenerUsuarioPorId(id);
+		const usuario = await servicioUsuarios.obtenerUsuarioPorId(id, true);
 
 		if (!usuario) {
 			throw new ErrorNoEncontrado('Usuario no encontrado');
@@ -144,7 +144,7 @@ async function actualizarUsuario(req, res) {
 		const datosActualizados = req.body;
 
 		// Verificar que el usuario existe
-		const usuario = await servicioUsuarios.obtenerUsuarioPorId(id);
+		const usuario = await servicioUsuarios.obtenerUsuarioPorId(id, true);
 		if (!usuario) {
 			throw new ErrorNoEncontrado('Usuario no encontrado');
 		}
@@ -165,12 +165,15 @@ async function actualizarUsuario(req, res) {
 			}
 		}
 
-		const usuarioActualizado = await servicioUsuarios.actualizarUsuario(id, datosActualizados, true);
+		await servicioUsuarios.actualizarUsuario(id, datosActualizados, true);
 
 		return res.json({
 			exito: true,
 			mensaje: 'Usuario actualizado exitosamente',
-			datos: usuarioActualizado
+			datos: {
+				...usuario,
+				...datosActualizados
+			}
 		});
 
 	} catch (error) {

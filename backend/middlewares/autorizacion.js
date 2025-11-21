@@ -74,7 +74,7 @@ function esTaquillaOAdmin(req, res, next) {
 async function esPropietarioEventoOAdmin(req, res, next) {
 	try {
 		const usuario = req.usuario;
-		const eventoId = req.params.id || req.body.evento_id;
+		const eventoId = req.params.id || req.params.eventoId || req.body.evento_id;
 
 		if (!eventoId) {
 			return res.status(400).json({

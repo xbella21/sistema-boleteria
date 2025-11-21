@@ -53,9 +53,11 @@ async function obtenerUsuarios(pagina = 1, limite = 20) {
  * @param {string} id - ID del usuario
  * @returns {Promise<Object>} - Datos del usuario
  */
-async function obtenerUsuarioPorId(id) {
+async function obtenerUsuarioPorId(id, usarAdmin = false) {
 	try {
-		const { data, error } = await supabase
+		const cliente = (usarAdmin && supabaseAdmin) ? supabaseAdmin : supabase;
+
+		const { data, error } = await cliente
 			.from('usuarios')
 			.select('*')
 			.eq('id', id)
@@ -177,18 +179,15 @@ async function crearUsuario(datosUsuario) {
  */
 async function actualizarUsuario(id, datosActualizados, esOperacionAdmin = false) {
 	try {
-		// Usar supabaseAdmin para actualizaciones administrativas
 		const cliente = (esOperacionAdmin && supabaseAdmin) ? supabaseAdmin : supabase;
 
-		const { data, error } = await cliente
+		const { error } = await cliente
 			.from('usuarios')
 			.update(datosActualizados)
-			.eq('id', id)
-			.select()
-			.single();
+			.eq('id', id);
 
 		if (error) throw error;
-		return data;
+		return true;
 	} catch (error) {
 		console.error('Error al actualizar usuario:', error);
 		throw new Error(MENSAJES_ERROR[CODIGOS_ERROR.ERROR_BASE_DATOS]);

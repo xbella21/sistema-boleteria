@@ -13,6 +13,8 @@ const { CODIGOS_ERROR, MENSAJES_ERROR, ESTADOS_EVENTO } = require('../config/con
  */
 async function obtenerEventos(filtros = {}) {
 	try {
+		await actualizarEstadosEventosAutomatico();
+
 		const { estado, organizadorId, pagina = 1, limite = 20 } = filtros;
 		const inicio = (pagina - 1) * limite;
 		const fin = inicio + limite - 1;
@@ -36,8 +38,10 @@ async function obtenerEventos(filtros = {}) {
 
 		if (error) throw error;
 
+		const eventosConEstadisticas = await adjuntarEstadisticasEventos(data || []);
+
 		return {
-			eventos: data,
+			eventos: eventosConEstadisticas,
 			total: count,
 			pagina,
 			limite
@@ -219,15 +223,12 @@ async function buscarEventos(termino) {
 async function obtenerEventosProximos(limite = 10) {
 	try {
 		const ahora = new Date();
-		const treintaDias = new Date();
-		treintaDias.setDate(ahora.getDate() + 30);
 
 		const { data, error } = await supabase
 			.from('eventos')
 			.select('*, usuarios!eventos_organizador_id_fkey(nombre, apellido)')
 			.eq('estado', ESTADOS_EVENTO.ACTIVO)
 			.gte('fecha_inicio', ahora.toISOString())
-			.lte('fecha_inicio', treintaDias.toISOString())
 			.order('fecha_inicio', { ascending: true })
 			.limit(limite);
 
@@ -266,6 +267,66 @@ async function actualizarAforoEvento(eventoId, cantidad) {
 	} catch (error) {
 		console.error('Error al actualizar aforo del evento:', error);
 		throw new Error(MENSAJES_ERROR[CODIGOS_ERROR.ERROR_BASE_DATOS]);
+	}
+}
+
+async function actualizarEstadosEventosAutomatico() {
+	try {
+		const ahora = new Date().toISOString();
+
+		const actualizaciones = [
+			supabase
+				.from('eventos')
+				.update({ estado: ESTADOS_EVENTO.FINALIZADO })
+				.lt('fecha_fin', ahora)
+				.neq('estado', ESTADOS_EVENTO.FINALIZADO)
+				.neq('estado', ESTADOS_EVENTO.CANCELADO),
+			supabase
+				.from('eventos')
+				.update({ estado: ESTADOS_EVENTO.FINALIZADO })
+				.is('fecha_fin', null)
+				.lt('fecha_inicio', ahora)
+				.neq('estado', ESTADOS_EVENTO.FINALIZADO)
+				.neq('estado', ESTADOS_EVENTO.CANCELADO)
+		];
+
+		for (const consulta of actualizaciones) {
+			const { error } = await consulta;
+			if (error) throw error;
+		}
+	} catch (error) {
+		console.error('Error al actualizar estados automáticos de eventos:', error);
+	}
+}
+
+async function adjuntarEstadisticasEventos(eventos) {
+	try {
+		if (!eventos.length) {
+			return eventos;
+		}
+
+		const ids = eventos.map(evento => evento.id);
+		const { data, error } = await supabase
+			.from('vista_estadisticas_eventos')
+			.select('id,total_boletos_vendidos,ingresos_totales,total_ingresos_registrados')
+			.in('id', ids);
+
+		if (error) throw error;
+
+		const mapa = {};
+		(data || []).forEach(item => {
+			mapa[item.id] = item;
+		});
+
+		return eventos.map(evento => ({
+			...evento,
+			total_boletos_vendidos: mapa[evento.id]?.total_boletos_vendidos || 0,
+			ingresos_totales: mapa[evento.id]?.ingresos_totales || 0,
+			aforo_registrado: mapa[evento.id]?.total_ingresos_registrados || 0
+		}));
+	} catch (error) {
+		console.error('Error al adjuntar estadísticas a eventos:', error);
+		return eventos;
 	}
 }
 

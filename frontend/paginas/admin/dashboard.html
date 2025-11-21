@@ -6,6 +6,55 @@
 	<title>Dashboard Administrativo</title>
 	<link rel="stylesheet" href="../../estilos/global.css">
 	<link rel="stylesheet" href="../../estilos/componentes.css">
+	<style>
+		.panel-resumen {
+			background: var(--color-fondo);
+			border: 1px solid var(--color-gris-claro);
+			border-radius: 12px;
+			padding: 16px;
+			min-height: 170px;
+		}
+		.panel-resumen h3 {
+			margin: 0 0 8px 0;
+		}
+		.panel-resumen p {
+			margin: 4px 0;
+			color: var(--color-gris-medio);
+		}
+		.barra-progreso {
+			height: 10px;
+			background: var(--color-gris-claro);
+			border-radius: 999px;
+			overflow: hidden;
+			margin-top: 8px;
+		}
+		.barra-progreso .avance {
+			height: 100%;
+			background: linear-gradient(90deg, var(--color-primario), var(--color-secundario));
+		}
+		.lista-indicadores {
+			list-style: none;
+			padding: 0;
+			margin: 0;
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+			gap: 12px;
+		}
+		.lista-indicadores li {
+			background: var(--color-fondo);
+			border: 1px dashed var(--color-gris-claro);
+			border-radius: 10px;
+			padding: 12px;
+		}
+		.lista-indicadores span {
+			display: block;
+		}
+		.lista-indicadores .valor {
+			font-size: 20px;
+			font-weight: 700;
+			color: var(--color-primario);
+		}
+	</style>
 </head>
 <body>
 	<div id="headerContainer"></div>
@@ -55,6 +104,54 @@
 					</a>
 				</div>
 			</div>
+
+			<div class="tarjeta mb-xl">
+				<h2 style="margin-bottom: 16px;">Reporte general</h2>
+				<div class="grid grid-3">
+					<div class="panel-resumen" id="detalleEventos">
+						<h3>Eventos</h3>
+						<p>Analizando datos...</p>
+					</div>
+					<div class="panel-resumen" id="detalleVentas">
+						<h3>Ventas</h3>
+						<p>Analizando datos...</p>
+					</div>
+					<div class="panel-resumen" id="detalleAforo">
+						<h3>Aforo global</h3>
+						<p>Analizando datos...</p>
+					</div>
+				</div>
+			</div>
+
+			<div class="tarjeta">
+				<h2 style="margin-bottom: 16px;">Indicadores clave</h2>
+				<ul class="lista-indicadores" id="listaIndicadores">
+					<li>Cargando métricas...</li>
+				</ul>
+			</div>
+
+			<div class="tarjeta">
+				<h2 style="margin-bottom: 16px;">Descargar reportes</h2>
+				<div class="grid grid-2" style="gap: 16px;">
+					<div>
+						<p style="margin: 0 0 8px 0; color: var(--color-gris-medio);">Reporte global (todos los eventos)</p>
+						<button class="btn btn-primario btn-block" onclick="descargarReporteGeneral()">
+							📄 Reporte general PDF
+						</button>
+					</div>
+					<div>
+						<label for="selectEventoReporte" style="display: block; margin-bottom: 8px; color: var(--color-gris-medio);">
+							Reporte por evento
+						</label>
+						<select id="selectEventoReporte" class="form-input" style="margin-bottom: 8px;">
+							<option value="">Seleccione un evento</option>
+						</select>
+						<button class="btn btn-secundario btn-block" onclick="descargarReporteEventoSeleccionado()">
+							📄 Descargar PDF del evento
+						</button>
+					</div>
+				</div>
+			</div>
 		</div>
 	</section>
 
@@ -71,6 +168,8 @@
 
 		if (!Auth.requiereRol(CONFIG.ROLES.ADMINISTRADOR)) {}
 
+		let eventosReporte = [];
+
 		async function cargarDashboard() {
 			try {
 				const response = await apiCliente.get('/reportes/dashboard');
@@ -85,13 +184,153 @@
 				document.getElementById('totalBoletos').textContent = datos.total_boletos || 0;
 				document.getElementById('totalIngresos').textContent = formatearPrecio(datos.ingresos_totales || 0);
 
+				renderizarResumenes(datos);
+				renderizarIndicadores(datos);
+
 			} catch (error) {
 				console.error('Error al cargar dashboard:', error);
 				mostrarToast('Error al cargar estadísticas', 'error');
 			}
 		}
 
-		document.addEventListener('DOMContentLoaded', cargarDashboard);
+		async function cargarEventosReporte() {
+			try {
+				const response = await apiCliente.get('/eventos/activos?pagina=1&limite=100');
+				const datos = response.datos;
+				eventosReporte = datos?.eventos || datos || [];
+
+				const select = document.getElementById('selectEventoReporte');
+				if (!select) return;
+
+				select.innerHTML = `
+					<option value="">Seleccione un evento</option>
+					${eventosReporte.map(evento => `
+						<option value="${evento.id}">
+							${evento.nombre} (${new Date(evento.fecha_inicio).toLocaleDateString('es-ES')})
+						</option>
+					`).join('')}
+				`;
+			} catch (error) {
+				console.error('Error al cargar eventos para reporte:', error);
+				mostrarToast('No se pudo cargar la lista de eventos', 'error');
+			}
+		}
+
+		async function descargarReporteGeneral() {
+			try {
+				mostrarToast('Generando reporte general...', 'info');
+				await apiCliente.descargar('/reportes/general/pdf', 'reporte-general-eventos.pdf');
+				mostrarToast('Reporte general descargado', 'exito');
+			} catch (error) {
+				console.error('Error al descargar reporte general:', error);
+				mostrarToast(error.message || 'Error al descargar reporte general', 'error');
+			}
+		}
+
+		async function descargarReporteEventoSeleccionado() {
+			const select = document.getElementById('selectEventoReporte');
+			const eventoId = select?.value;
+
+			if (!eventoId) {
+				mostrarToast('Seleccione un evento para generar el reporte', 'error');
+				return;
+			}
+
+			try {
+				const evento = eventosReporte.find(e => e.id === eventoId);
+				const nombre = evento?.nombre
+					? evento.nombre.replace(/[^a-z0-9]/gi, '-').toLowerCase()
+					: eventoId;
+
+				mostrarToast('Generando reporte del evento...', 'info');
+				await apiCliente.descargar(`/reportes/ventas/${eventoId}/pdf`, `reporte-${nombre}.pdf`);
+				mostrarToast('Reporte del evento descargado', 'exito');
+			} catch (error) {
+				console.error('Error al descargar reporte del evento:', error);
+				mostrarToast(error.message || 'Error al descargar reporte del evento', 'error');
+			}
+		}
+
+		function renderizarResumenes(datos) {
+			const totalEventos = datos.eventos?.total || 0;
+			const eventosActivos = datos.eventos?.activos || 0;
+			const eventosFinalizados = datos.eventos?.finalizados || 0;
+			const porcentajeActivos = totalEventos ? Math.round((eventosActivos / totalEventos) * 100) : 0;
+			const porcentajeFinalizados = totalEventos ? Math.round((eventosFinalizados / totalEventos) * 100) : 0;
+
+			document.getElementById('detalleEventos').innerHTML = `
+				<h3>Eventos</h3>
+				<p>Total: <strong>${totalEventos}</strong></p>
+				<p>Activos: ${eventosActivos} (${porcentajeActivos}%)</p>
+				<p>Finalizados: ${eventosFinalizados} (${porcentajeFinalizados}%)</p>
+				<div class="barra-progreso">
+					<div class="avance" style="width: ${porcentajeActivos}%;"></div>
+				</div>
+			`;
+
+			const ingresosTotales = parseFloat(datos.ingresos_totales) || 0;
+			const totalBoletos = datos.total_boletos || 0;
+			const ingresoPromedio = totalEventos ? ingresosTotales / totalEventos : 0;
+			const ticketPromedio = totalBoletos ? ingresosTotales / totalBoletos : 0;
+
+			document.getElementById('detalleVentas').innerHTML = `
+				<h3>Ventas</h3>
+				<p>Boletos vendidos: <strong>${totalBoletos}</strong></p>
+				<p>Ingresos: ${formatearPrecio(ingresosTotales)}</p>
+				<p>Ingreso por evento: ${formatearPrecio(ingresoPromedio)}</p>
+				<p>Ticket promedio: ${formatearPrecio(ticketPromedio)}</p>
+			`;
+
+			const aforo = datos.aforo || {};
+			const porcentajeAforo = parseFloat(aforo.porcentaje) || 0;
+			document.getElementById('detalleAforo').innerHTML = `
+				<h3>Aforo global</h3>
+				<p>Ocupado: ${aforo.ocupado || 0}</p>
+				<p>Capacidad: ${aforo.maximo || 0}</p>
+				<p>Uso promedio: ${porcentajeAforo}%</p>
+				<div class="barra-progreso">
+					<div class="avance" style="width: ${porcentajeAforo}%;"></div>
+				</div>
+			`;
+		}
+
+		function renderizarIndicadores(datos) {
+			const totalEventos = datos.eventos?.total || 0;
+			const totalBoletos = datos.total_boletos || 0;
+			const totalUsuarios = datos.total_usuarios || 0;
+			const ingresosTotales = parseFloat(datos.ingresos_totales) || 0;
+
+			const indicadores = [
+				{
+					nombre: 'Boletos por evento',
+					valor: totalEventos ? (totalBoletos / totalEventos).toFixed(1) : '0'
+				},
+				{
+					nombre: 'Usuarios por evento',
+					valor: totalEventos ? (totalUsuarios / totalEventos).toFixed(1) : '0'
+				},
+				{
+					nombre: 'Ingresos por boleto',
+					valor: totalBoletos ? formatearPrecio(ingresosTotales / totalBoletos) : formatearPrecio(0)
+				},
+				{
+					nombre: 'Ingresos por usuario',
+					valor: totalUsuarios ? formatearPrecio(ingresosTotales / totalUsuarios) : formatearPrecio(0)
+				}
+			];
+
+			document.getElementById('listaIndicadores').innerHTML = indicadores.map(indicador => `
+				<li>
+					<span>${indicador.nombre}</span>
+					<span class="valor">${indicador.valor}</span>
+				</li>
+			`).join('');
+		}
+
+		document.addEventListener('DOMContentLoaded', () => {
+			cargarDashboard();
+			cargarEventosReporte();
+		});
 	</script>
 </body>
 </html>

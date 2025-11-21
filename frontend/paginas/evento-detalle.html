@@ -159,7 +159,9 @@
 			document.getElementById('eventoImagen').alt = evento.nombre;
 			document.getElementById('eventoFecha').textContent = formatearFecha(evento.fecha_inicio) + ' - ' + formatearFecha(evento.fecha_fin);
 			document.getElementById('eventoUbicacion').textContent = evento.ubicacion;
-			document.getElementById('eventoAforo').textContent = `${evento.aforo_actual || 0} / ${evento.aforo_maximo}`;
+			const boletosVendidos = evento.total_boletos_vendidos || 0;
+			const aforoMostrado = evento.aforo_registrado || boletosVendidos || evento.aforo_actual || 0;
+			document.getElementById('eventoAforo').textContent = `${aforoMostrado} / ${evento.aforo_maximo}`;
 			document.getElementById('eventoDescripcion').textContent = evento.descripcion || 'Sin descripción';
 
 			// Estado con colores
