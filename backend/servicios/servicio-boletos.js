@@ -3,7 +3,7 @@
  * Interactúa con la tabla 'boletos' de Supabase
  */
 
-const { supabase } = require('../config/supabase');
+const { supabase, supabaseAdmin } = require('../config/supabase');
 const { CODIGOS_ERROR, MENSAJES_ERROR, ESTADOS_BOLETO } = require('../config/constantes');
 const { generarCodigoUnico } = require('../utils/generador-qr');
 
@@ -14,7 +14,11 @@ const { generarCodigoUnico } = require('../utils/generador-qr');
  */
 async function obtenerBoletosPorUsuario(usuarioId) {
 	try {
-		const { data, error } = await supabase
+		// Usar supabaseAdmin para bypass de RLS si es necesario
+		const { supabaseAdmin } = require('../config/supabase');
+		const clienteAdmin = supabaseAdmin || supabase;
+
+		const { data, error } = await clienteAdmin
 			.from('boletos')
 			.select(`
 				*,
@@ -25,7 +29,7 @@ async function obtenerBoletosPorUsuario(usuarioId) {
 			.order('fecha_compra', { ascending: false });
 
 		if (error) throw error;
-		return data;
+		return data || [];
 	} catch (error) {
 		console.error('Error al obtener boletos del usuario:', error);
 		throw new Error(MENSAJES_ERROR[CODIGOS_ERROR.ERROR_BASE_DATOS]);
@@ -68,9 +72,9 @@ async function obtenerBoletoPorId(id) {
 			.from('boletos')
 			.select(`
 				*,
-				eventos(nombre, fecha_inicio, ubicacion),
+				eventos(nombre, fecha_inicio, ubicacion, imagen_url),
 				usuarios(nombre, apellido, email),
-				categorias_entradas(nombre)
+				categorias_entradas(nombre, descripcion)
 			`)
 			.eq('id', id)
 			.single();
@@ -92,13 +96,17 @@ async function obtenerBoletoPorId(id) {
  */
 async function obtenerBoletoPorCodigoQR(codigoQR) {
 	try {
-		const { data, error } = await supabase
+		console.log('Buscando boleto por código QR:', codigoQR);
+		const { supabaseAdmin } = require('../config/supabase');
+		const clienteAdmin = supabaseAdmin || supabase;
+
+		const { data, error } = await clienteAdmin
 			.from('boletos')
 			.select(`
 				*,
-				eventos(nombre, fecha_inicio, ubicacion, aforo_maximo, aforo_actual),
+				eventos(nombre, fecha_inicio, ubicacion, imagen_url, aforo_maximo, aforo_actual),
 				usuarios(nombre, apellido, email),
-				categorias_entradas(nombre)
+				categorias_entradas(nombre, descripcion)
 			`)
 			.eq('codigo_qr', codigoQR)
 			.single();
@@ -153,24 +161,53 @@ async function crearBoleto(datosBoleto) {
  */
 async function crearBoletos(boletos) {
 	try {
-		const boletosConCodigo = boletos.map(boleto => ({
-			...boleto,
-			codigo_qr: generarCodigoUnico(
-				boleto.usuario_id || 'temp',
-				boleto.evento_id
-			),
-			estado: ESTADOS_BOLETO.VALIDO
-		}));
+		// Validar que boletos sea un array y no esté vacío
+		if (!Array.isArray(boletos) || boletos.length === 0) {
+			throw new Error('Debe proporcionar al menos un boleto para crear');
+		}
 
-		const { data, error } = await supabase
+		// Validar que cada boleto tenga los campos requeridos
+		for (const boleto of boletos) {
+			if (!boleto.evento_id || !boleto.usuario_id || !boleto.categoria_id) {
+				throw new Error('Cada boleto debe tener evento_id, usuario_id y categoria_id');
+			}
+		}
+
+		// Generar códigos QR únicos para cada boleto
+		const boletosConCodigo = boletos.map((boleto, index) => {
+			// Agregar un índice único para evitar colisiones en la misma transacción
+			const identificadorUnico = `${boleto.usuario_id}-${Date.now()}-${index}`;
+			return {
+				...boleto,
+				codigo_qr: generarCodigoUnico(
+					identificadorUnico,
+					boleto.evento_id
+				),
+				estado: ESTADOS_BOLETO.VALIDO
+			};
+		});
+
+		console.log('Intentando crear boletos:', boletosConCodigo.length);
+		console.log('Primer boleto:', JSON.stringify(boletosConCodigo[0], null, 2));
+
+		// Usar supabaseAdmin para bypass de RLS en operaciones del backend
+		const clienteAdmin = supabaseAdmin || supabase;
+		const { data, error } = await clienteAdmin
 			.from('boletos')
 			.insert(boletosConCodigo)
 			.select();
 
-		if (error) throw error;
+		if (error) {
+			console.error('Error de Supabase al insertar boletos:', error);
+			console.error('Detalles del error:', JSON.stringify(error, null, 2));
+			throw error;
+		}
+
+		console.log('Boletos creados exitosamente:', data.length);
 		return data;
 	} catch (error) {
 		console.error('Error al crear boletos:', error);
+		console.error('Stack trace:', error.stack);
 		throw new Error(MENSAJES_ERROR[CODIGOS_ERROR.ERROR_BASE_DATOS]);
 	}
 }
@@ -192,7 +229,9 @@ async function actualizarEstadoBoleto(id, nuevoEstado) {
 			datosActualizacion.fecha_uso = new Date().toISOString();
 		}
 
-		const { data, error } = await supabase
+		const clienteAdmin = supabaseAdmin || supabase;
+
+		const { data, error } = await clienteAdmin
 			.from('boletos')
 			.update(datosActualizacion)
 			.eq('id', id)

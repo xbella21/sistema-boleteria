@@ -38,7 +38,12 @@ const supabaseAdmin = SUPABASE_SERVICE_KEY
 			persistSession: false
 		}
 	})
-	: null;
+	: createClient(SUPABASE_URL, SUPABASE_KEY, {
+		auth: {
+			autoRefreshToken: true,
+			persistSession: false
+		}
+	});
 
 /**
  * Verifica la conexión con Supabase

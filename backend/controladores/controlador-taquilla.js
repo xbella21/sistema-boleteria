@@ -64,30 +64,33 @@ async function validarBoleto(req, res) {
 			});
 		}
 
-		// Boleto válido - retornar información
+		// Boleto válido - normalizar datos para el frontend
+		const boletoNormalizado = {
+			id: boleto.id,
+			evento_id: boleto.evento_id,
+			codigo_qr: boleto.codigo_qr,
+			estado: boleto.estado,
+			precio_pagado: boleto.precio_pagado,
+			fecha_compra: boleto.fecha_compra,
+			fecha_uso: boleto.fecha_uso,
+			evento_nombre: evento.nombre,
+			evento_fecha_inicio: evento.fecha_inicio,
+			evento_ubicacion: evento.ubicacion,
+			evento_imagen_url: evento.imagen_url,
+			usuario_nombre: `${boleto.usuarios.nombre} ${boleto.usuarios.apellido}`.trim(),
+			usuario_email: boleto.usuarios.email,
+			categoria_nombre: boleto.categorias_entradas.nombre,
+			categoria_descripcion: boleto.categorias_entradas.descripcion,
+			aforo_actual: evento.aforo_actual,
+			aforo_maximo: evento.aforo_maximo,
+			aforo_disponible: evento.aforo_maximo - evento.aforo_actual
+		};
+
 		return res.json({
 			exito: true,
 			valido: true,
 			mensaje: 'Boleto válido',
-			datos: {
-				boleto_id: boleto.id,
-				evento: {
-					nombre: evento.nombre,
-					fecha_inicio: evento.fecha_inicio,
-					ubicacion: evento.ubicacion
-				},
-				asistente: {
-					nombre: boleto.usuarios.nombre,
-					apellido: boleto.usuarios.apellido,
-					email: boleto.usuarios.email
-				},
-				categoria: boleto.categorias_entradas.nombre,
-				aforo: {
-					actual: evento.aforo_actual,
-					maximo: evento.aforo_maximo,
-					disponible: evento.aforo_maximo - evento.aforo_actual
-				}
-			}
+			datos: boletoNormalizado
 		});
 
 	} catch (error) {

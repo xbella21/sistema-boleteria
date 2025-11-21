@@ -61,14 +61,20 @@ async function generarQRDataURL(datos) {
 
 /**
  * Genera un código único para el boleto
- * @param {string} boletoId - ID del boleto
+ * @param {string} usuarioId - ID del usuario (o identificador temporal)
  * @param {string} eventoId - ID del evento
  * @returns {string} - Código único
  */
-function generarCodigoUnico(boletoId, eventoId) {
+function generarCodigoUnico(usuarioId, eventoId) {
 	const timestamp = Date.now();
 	const random = Math.random().toString(36).substring(2, 15);
-	return `${boletoId.substring(0, 8)}-${eventoId.substring(0, 8)}-${timestamp}-${random}`;
+	const microsegundos = process.hrtime.bigint().toString().slice(-6);
+	
+	// Asegurar que usuarioId y eventoId sean strings válidos
+	const usuarioStr = usuarioId && typeof usuarioId === 'string' ? usuarioId.substring(0, 8) : 'temp';
+	const eventoStr = eventoId && typeof eventoId === 'string' ? eventoId.substring(0, 8) : 'event';
+	
+	return `${usuarioStr}-${eventoStr}-${timestamp}-${microsegundos}-${random}`;
 }
 
 /**

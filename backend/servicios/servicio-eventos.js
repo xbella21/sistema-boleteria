@@ -239,6 +239,36 @@ async function obtenerEventosProximos(limite = 10) {
 	}
 }
 
+/**
+ * Actualizar aforo de un evento (incrementar o decrementar)
+ * @param {string} eventoId - ID del evento
+ * @param {number} cantidad - Cantidad a incrementar (positivo) o decrementar (negativo)
+ * @returns {Promise<Object>} - Evento actualizado
+ */
+async function actualizarAforoEvento(eventoId, cantidad) {
+	try {
+		const { supabaseAdmin } = require('../config/supabase');
+		const clienteAdmin = supabaseAdmin || supabase;
+
+		// Obtener el evento actual
+		const evento = await obtenerEventoPorId(eventoId);
+		const nuevoAforo = Math.max(0, Math.min(evento.aforo_maximo, evento.aforo_actual + cantidad));
+
+		const { data, error } = await clienteAdmin
+			.from('eventos')
+			.update({ aforo_actual: nuevoAforo })
+			.eq('id', eventoId)
+			.select()
+			.single();
+
+		if (error) throw error;
+		return data;
+	} catch (error) {
+		console.error('Error al actualizar aforo del evento:', error);
+		throw new Error(MENSAJES_ERROR[CODIGOS_ERROR.ERROR_BASE_DATOS]);
+	}
+}
+
 module.exports = {
 	obtenerEventos,
 	obtenerEventosActivos,
@@ -249,6 +279,7 @@ module.exports = {
 	cambiarEstadoEvento,
 	obtenerEstadisticasEvento,
 	buscarEventos,
-	obtenerEventosProximos
+	obtenerEventosProximos,
+	actualizarAforoEvento
 };
 

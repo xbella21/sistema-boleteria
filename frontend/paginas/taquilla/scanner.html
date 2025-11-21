@@ -53,19 +53,42 @@
 		document.getElementById('formValidar').addEventListener('submit', async (e) => {
 			e.preventDefault();
 
-			const codigoQR = document.getElementById('codigoQR').value.trim();
+			const inputQR = document.getElementById('codigoQR').value.trim();
 			const resultadoContainer = document.getElementById('resultadoContainer');
-
-			if (!codigoQR) {
+			if (!inputQR) {
 				resultadoContainer.innerHTML = '<div class="alerta alerta-advertencia">Por favor ingrese un código</div>';
 				return;
 			}
+
+			// Permitir pegar el JSON completo del QR
+			let codigoQR = inputQR;
+			if (inputQR.startsWith('{')) {
+				try {
+					const dataQR = JSON.parse(inputQR);
+					codigoQR = (dataQR.codigo || dataQR.codigo_qr || dataQR.cod || '').trim();
+				} catch (err) {
+					console.warn('No se pudo parsear el JSON del QR, se usará el texto completo');
+				}
+			}
+
+			if (typeof codigoQR !== 'string') {
+				codigoQR = typeof codigoQR?.value === 'string' ? codigoQR.value : String(codigoQR || '');
+			}
+
+			codigoQR = codigoQR.trim();
+			if (!codigoQR) {
+				resultadoContainer.innerHTML = '<div class="alerta alerta-error">El código QR no contiene un identificador válido.</div>';
+				return;
+			}
+
+			console.log('Código enviado al backend:', codigoQR);
 
 			resultadoContainer.innerHTML = '<div class="text-center"><div class="loader"></div></div>';
 
 			try {
 				const response = await apiCliente.post('/taquilla/validar', { codigo_qr: codigoQR });
-				const boleto = response.datos;
+				console.log('Respuesta validar:', response);
+				const boleto = normalizarDatosBoleto(response.datos, response, codigoQR);
 
 				if (boleto.estado === 'valido') {
 					resultadoContainer.innerHTML = `
@@ -83,7 +106,7 @@
 								<div style="margin-bottom: 8px;"><strong>Fecha evento:</strong> ${formatearFecha(boleto.evento_fecha_inicio)}</div>
 								<div style="margin-bottom: 8px;"><strong>Precio pagado:</strong> ${formatearPrecio(boleto.precio_pagado)}</div>
 								<div style="margin-bottom: 16px;"><strong>Código:</strong> <code style="background: var(--color-gris-claro); padding: 4px 8px; border-radius: 4px;">${boleto.codigo_qr}</code></div>
-								<button class="btn btn-primario btn-block" onclick="registrarIngreso('${boleto.id}', '${boleto.evento_id}')">
+								<button class="btn btn-primario btn-block" onclick="registrarIngreso('${boleto.codigo_qr}')">
 									Registrar Ingreso
 								</button>
 							</div>
@@ -135,11 +158,10 @@
 			document.getElementById('codigoQR').focus();
 		});
 
-		async function registrarIngreso(boletoId, eventoId) {
+		async function registrarIngreso(codigoQR) {
 			try {
 				await apiCliente.post('/taquilla/registrar-ingreso', {
-					boleto_id: boletoId,
-					evento_id: eventoId
+					codigo_qr: codigoQR
 				});
 
 				document.getElementById('resultadoContainer').innerHTML = `
@@ -158,6 +180,43 @@
 				console.error('Error al registrar ingreso:', error);
 				mostrarToast(error.message || 'Error al registrar ingreso', 'error');
 			}
+		}
+		function normalizarDatosBoleto(datos, respuesta, codigoOriginal) {
+			if (!datos) {
+				return null;
+			}
+
+			const evento = datos.evento || {};
+			const asistente = datos.asistente || {};
+			const categoria = datos.categoria || datos.categorias_entradas || {};
+
+			let estado = datos.estado;
+			if (!estado) {
+				if (respuesta?.valido) {
+					estado = 'valido';
+				} else if (respuesta?.codigo === 'BOLETO_YA_USADO') {
+					estado = 'usado';
+				} else {
+					estado = 'cancelado';
+				}
+			}
+
+			return {
+				id: datos.id || datos.boleto_id || '',
+				codigo_qr: datos.codigo_qr || datos.codigo || codigoOriginal || '',
+				estado,
+				precio_pagado: datos.precio_pagado || datos.precio || 0,
+				fecha_compra: datos.fecha_compra || null,
+				fecha_uso: datos.fecha_uso || null,
+				evento_nombre: datos.evento_nombre || evento.nombre || 'Evento sin nombre',
+				evento_fecha_inicio: datos.evento_fecha_inicio || evento.fecha_inicio || null,
+				evento_ubicacion: datos.evento_ubicacion || evento.ubicacion || 'Ubicación no disponible',
+				evento_imagen_url: datos.evento_imagen_url || evento.imagen_url || null,
+				usuario_nombre: datos.usuario_nombre || [asistente.nombre, asistente.apellido].filter(Boolean).join(' ') || 'Asistente',
+				usuario_email: datos.usuario_email || asistente.email || '',
+				categoria_nombre: datos.categoria_nombre || categoria.nombre || categoria || 'Categoría',
+				categoria_descripcion: datos.categoria_descripcion || categoria.descripcion || ''
+			};
 		}
 	</script>
 </body>

@@ -80,41 +80,86 @@
 				
 				mensajeContainer.innerHTML = '';
 
-				let eventos = response.datos;
+				// Acceder correctamente a los datos según la estructura de la respuesta
+				let eventos = [];
+				let tienePaginacion = false;
 				
-				// Si la respuesta tiene paginación
-				if (response.datos.datos) {
-					eventos = response.datos.datos;
-					totalPaginas = response.datos.totalPaginas || 1;
+				// Validar que response y response.datos existan
+				if (!response || !response.datos) {
+					console.error('Respuesta inválida:', response);
+					contenedor.innerHTML = '<div class="alerta alerta-error">Error: Respuesta inválida del servidor</div>';
+					return;
+				}
+				
+				const datos = response.datos;
+				
+				// Caso 1: Estructura paginada { eventos: [...], total, pagina, limite }
+				if (datos && typeof datos === 'object' && !Array.isArray(datos) && datos.eventos) {
+					if (Array.isArray(datos.eventos)) {
+						eventos = datos.eventos;
+						// Calcular total de páginas basado en total y limite
+						const total = datos.total || 0;
+						const limite = datos.limite || 12;
+						totalPaginas = Math.ceil(total / limite) || 1;
+						tienePaginacion = true;
+					}
+				}
+				// Caso 2: Array directo (búsqueda sin paginación)
+				else if (Array.isArray(datos)) {
+					eventos = datos;
+					tienePaginacion = false;
+				}
+				// Caso 3: Fallback - si response.datos es directamente un array
+				else if (Array.isArray(response.datos)) {
+					eventos = response.datos;
+					tienePaginacion = false;
+				}
+				
+				// Asegurar que eventos sea SIEMPRE un array antes de continuar
+				if (!Array.isArray(eventos)) {
+					console.error('eventos no es un array después de procesar:', eventos);
+					eventos = [];
+				}
+				
+				// Renderizar paginación solo si hay estructura de paginación
+				if (tienePaginacion) {
 					renderizarPaginacion();
+				} else {
+					document.getElementById('paginacionContainer').innerHTML = '';
 				}
 
-				if (eventos && eventos.length > 0) {
+				// Verificación final antes de usar .map()
+				if (!Array.isArray(eventos)) {
+					console.error('ERROR CRÍTICO: eventos no es un array antes de .map()');
+					eventos = [];
+				}
+
+				if (eventos.length > 0) {
 					contenedor.innerHTML = eventos.map(evento => `
-						<div class="tarjeta-evento" onclick="window.location.href='./evento-detalle.html?id=${evento.id}'">
-							<img src="${evento.imagen_url || 'https://via.placeholder.com/400x250/2B6CB0/ffffff?text=Evento'}" 
-								 alt="${evento.nombre}" 
-								 class="tarjeta-evento-imagen"
-								 style="width: 100%; height: 200px; object-fit: cover; border-radius: 8px 8px 0 0;">
-							<div class="tarjeta-evento-contenido">
-								<h3 class="tarjeta-evento-titulo">${evento.nombre}</h3>
-								<div class="tarjeta-evento-fecha" style="color: var(--color-primario); margin-bottom: 8px;">
-									📅 ${formatearFecha(evento.fecha_inicio)}
-								</div>
-								<div class="tarjeta-evento-ubicacion" style="color: var(--color-gris-medio); margin-bottom: 12px;">
-									📍 ${evento.ubicacion}
-								</div>
-								<p class="tarjeta-evento-descripcion" style="color: var(--color-gris-oscuro); margin-bottom: 16px;">
-									${truncarTexto(evento.descripcion || 'Sin descripción', 120)}
-								</p>
-								<div style="display: flex; justify-content: space-between; align-items: center;">
-									<div style="font-size: 14px; color: var(--color-gris-medio);">
-										${evento.aforo_actual || 0} / ${evento.aforo_maximo} asistentes
+							<div class="tarjeta-evento" onclick="window.location.href='./evento-detalle.html?id=${evento.id}'">
+								<img src="${evento.imagen_url || 'https://via.placeholder.com/400x250/2B6CB0/ffffff?text=Evento'}" 
+									 alt="${evento.nombre}" 
+									 class="tarjeta-evento-imagen"
+									 style="width: 100%; height: 200px; object-fit: cover; border-radius: 8px 8px 0 0;">
+								<div class="tarjeta-evento-contenido">
+									<h3 class="tarjeta-evento-titulo">${evento.nombre}</h3>
+									<div class="tarjeta-evento-fecha" style="color: var(--color-primario); margin-bottom: 8px;">
+										📅 ${formatearFecha(evento.fecha_inicio)}
 									</div>
-									<button class="btn btn-primario btn-sm" onclick="event.stopPropagation(); window.location.href='./evento-detalle.html?id=${evento.id}'">
-										Ver Detalles
-									</button>
-								</div>
+									<div class="tarjeta-evento-ubicacion" style="color: var(--color-gris-medio); margin-bottom: 12px;">
+										📍 ${evento.ubicacion}
+									</div>
+									<p class="tarjeta-evento-descripcion" style="color: var(--color-gris-oscuro); margin-bottom: 16px;">
+										${truncarTexto(evento.descripcion || 'Sin descripción', 120)}
+									</p>
+									<div style="display: flex; justify-content: space-between; align-items: center;">
+										<div style="font-size: 14px; color: var(--color-gris-medio);">
+											${evento.aforo_actual || 0} / ${evento.aforo_maximo} asistentes
+										</div>
+										<button class="btn btn-primario btn-sm" onclick="event.stopPropagation(); window.location.href='./evento-detalle.html?id=${evento.id}'">
+											Ver Detalles
+										</button>
+									</div>
 							</div>
 						</div>
 					`).join('');

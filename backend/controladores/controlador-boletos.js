@@ -21,9 +21,20 @@ async function obtenerMisBoletos(req, res) {
 		const usuario = req.usuario;
 		const boletos = await servicioBoletos.obtenerBoletosPorUsuario(usuario.id);
 
+		// Transformar los datos para que coincidan con lo que espera el frontend
+		const boletosTransformados = boletos.map(boleto => ({
+			...boleto,
+			evento_nombre: boleto.eventos?.nombre || 'Evento desconocido',
+			evento_fecha_inicio: boleto.eventos?.fecha_inicio || null,
+			evento_ubicacion: boleto.eventos?.ubicacion || 'Ubicación no disponible',
+			evento_imagen_url: boleto.eventos?.imagen_url || null,
+			categoria_nombre: boleto.categorias_entradas?.nombre || 'Categoría desconocida',
+			categoria_descripcion: boleto.categorias_entradas?.descripcion || null
+		}));
+
 		return res.json({
 			exito: true,
-			datos: boletos
+			datos: boletosTransformados
 		});
 
 	} catch (error) {
@@ -65,16 +76,31 @@ async function obtenerBoletoPorId(req, res) {
 			throw new ErrorNoEncontrado('Boleto no encontrado');
 		}
 
+		// Verificar que el boleto pertenece al usuario o es admin/organizador
+		const usuario = req.usuario;
+		if (boleto.usuario_id !== usuario.id && usuario.rol !== 'administrador' && usuario.rol !== 'organizador') {
+			throw new ErrorValidacion('No tiene permiso para ver este boleto');
+		}
+
 		// Generar código QR para el boleto
 		const datosQR = generarDatosQRBoleto(boleto);
 		const qrDataURL = await generarQRDataURL(datosQR);
 
+		// Transformar los datos para que coincidan con lo que espera el frontend
+		const boletoTransformado = {
+			...boleto,
+			evento_nombre: boleto.eventos?.nombre || 'Evento desconocido',
+			evento_fecha_inicio: boleto.eventos?.fecha_inicio || null,
+			evento_ubicacion: boleto.eventos?.ubicacion || 'Ubicación no disponible',
+			evento_imagen_url: boleto.eventos?.imagen_url || null,
+			categoria_nombre: boleto.categorias_entradas?.nombre || 'Categoría desconocida',
+			categoria_descripcion: boleto.categorias_entradas?.descripcion || null,
+			qr_data_url: qrDataURL
+		};
+
 		return res.json({
 			exito: true,
-			datos: {
-				...boleto,
-				qr_data_url: qrDataURL
-			}
+			datos: boletoTransformado
 		});
 
 	} catch (error) {
@@ -92,20 +118,34 @@ async function comprarBoletos(req, res) {
 		const usuario = req.usuario;
 		const { evento_id, categoria_id, cantidad } = req.body;
 
+		console.log('=== INICIO COMPRA DE BOLETOS ===');
+		console.log('Usuario:', usuario.id);
+		console.log('Evento ID:', evento_id);
+		console.log('Categoría ID:', categoria_id);
+		console.log('Cantidad:', cantidad);
+
 		// Validar cantidad
 		if (cantidad < 1 || cantidad > 10) {
 			throw new ErrorValidacion('La cantidad debe estar entre 1 y 10');
 		}
 
 		// Verificar que el evento existe y está activo
+		console.log('Obteniendo evento...');
 		const evento = await servicioEventos.obtenerEventoPorId(evento_id);
+		console.log('Evento obtenido:', evento.nombre, 'Estado:', evento.estado);
+		
 		if (evento.estado !== 'activo') {
 			throw new ErrorValidacion('El evento no está disponible para compra');
 		}
 
 		// Verificar disponibilidad de la categoría
+		console.log('Obteniendo categoría...');
 		const categoria = await servicioCategorias.obtenerCategoriaPorId(categoria_id);
+		console.log('Categoría obtenida:', categoria.nombre, 'Precio:', categoria.precio);
+		
+		console.log('Verificando disponibilidad...');
 		const disponibilidadOk = await servicioCategorias.verificarDisponibilidad(categoria_id, cantidad);
+		console.log('Disponibilidad OK:', disponibilidadOk);
 
 		if (!disponibilidadOk) {
 			throw new ErrorValidacion('No hay suficientes entradas disponibles', {
@@ -114,24 +154,42 @@ async function comprarBoletos(req, res) {
 		}
 
 		// Verificar aforo del evento
-		if (evento.aforo_maximo - evento.aforo_actual < cantidad) {
+		const aforoDisponible = evento.aforo_maximo - evento.aforo_actual;
+		console.log('Aforo disponible:', aforoDisponible, 'de', evento.aforo_maximo);
+		
+		if (aforoDisponible < cantidad) {
 			throw new ErrorValidacion('El evento no tiene capacidad suficiente', {
 				codigo: CODIGOS_ERROR.AFORO_COMPLETO
 			});
 		}
 
 		// Crear boletos
+		console.log('Preparando boletos para crear...');
+		const precioPagado = parseFloat(categoria.precio);
+		if (isNaN(precioPagado) || precioPagado < 0) {
+			throw new ErrorValidacion('El precio de la categoría no es válido');
+		}
+		console.log('Precio a pagar por boleto:', precioPagado);
+		
 		const boletos = [];
 		for (let i = 0; i < cantidad; i++) {
 			boletos.push({
 				evento_id,
 				usuario_id: usuario.id,
 				categoria_id,
-				precio_pagado: categoria.precio
+				precio_pagado: precioPagado
 			});
 		}
+		console.log('Boletos preparados:', boletos.length);
 
+		console.log('Creando boletos en base de datos...');
 		const boletosCreados = await servicioBoletos.crearBoletos(boletos);
+		console.log('Boletos creados exitosamente:', boletosCreados.length);
+
+		// Actualizar aforo del evento
+		console.log('Actualizando aforo del evento...');
+		await servicioEventos.actualizarAforoEvento(evento_id, cantidad);
+		console.log('Aforo actualizado exitosamente');
 
 		// Generar QR para cada boleto
 		const boletosConQR = await Promise.all(

@@ -3,7 +3,7 @@
  * Interactúa con la tabla 'registro_ingresos' de Supabase
  */
 
-const { supabase } = require('../config/supabase');
+const { supabase, supabaseAdmin } = require('../config/supabase');
 const { CODIGOS_ERROR, MENSAJES_ERROR } = require('../config/constantes');
 
 /**
@@ -13,7 +13,9 @@ const { CODIGOS_ERROR, MENSAJES_ERROR } = require('../config/constantes');
  */
 async function registrarIngreso(datosIngreso) {
 	try {
-		const { data, error } = await supabase
+		const clienteAdmin = supabaseAdmin || supabase;
+
+		const { data, error } = await clienteAdmin
 			.from('registro_ingresos')
 			.insert(datosIngreso)
 			.select()
