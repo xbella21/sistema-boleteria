@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Mis Eventos - Organizador</title>
+	<link rel="stylesheet" href="../../estilos/global.css">
+	<link rel="stylesheet" href="../../estilos/componentes.css">
+</head>
+<body>
+	<div id="headerContainer"></div>
+
+	<section style="padding: 60px 0;">
+		<div class="contenedor">
+			<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; flex-wrap: wrap; gap: 16px;">
+				<h1 style="margin: 0;">Mis Eventos</h1>
+				<a href="./crear-evento.html" class="btn btn-primario">+ Crear Evento</a>
+			</div>
+
+			<!-- Filtros -->
+			<div class="tarjeta mb-lg">
+				<div style="display: flex; gap: 16px; flex-wrap: wrap;">
+					<select id="filtroEstado" class="form-input" style="max-width: 200px;">
+						<option value="">Todos los estados</option>
+						<option value="activo">Activos</option>
+						<option value="borrador">Borradores</option>
+						<option value="finalizado">Finalizados</option>
+						<option value="cancelado">Cancelados</option>
+					</select>
+				</div>
+			</div>
+
+			<!-- Lista de eventos -->
+			<div id="eventosContainer">
+				<div class="loader"></div>
+			</div>
+		</div>
+	</section>
+
+	<div id="footerContainer"></div>
+
+	<script src="../../scripts/config.js"></script>
+	<script src="../../scripts/api-cliente.js"></script>
+	<script src="../../scripts/auth.js"></script>
+	<script src="../../scripts/utilidades.js"></script>
+	<script src="../../scripts/header.js"></script>
+	<script>
+		// Cargar componentes
+		fetch('../../componentes/header.html').then(r => r.text()).then(h => document.getElementById('headerContainer').innerHTML = h);
+		fetch('../../componentes/footer.html').then(r => r.text()).then(h => document.getElementById('footerContainer').innerHTML = h);
+
+		// Verificar autenticación y rol
+		if (!Auth.requiereRol([CONFIG.ROLES.ORGANIZADOR, CONFIG.ROLES.ADMINISTRADOR])) {
+			// Ya redirige automáticamente
+		}
+
+		// Cargar eventos
+		async function cargarEventos() {
+			try {
+				const filtroEstado = document.getElementById('filtroEstado').value;
+				let endpoint = '/eventos?limite=100';
+				
+				if (filtroEstado) {
+					endpoint += `&estado=${filtroEstado}`;
+				}
+
+				const response = await apiCliente.get(endpoint);
+				const eventos = response.datos.datos || response.datos || [];
+				
+				mostrarEventos(eventos);
+
+			} catch (error) {
+				console.error('Error al cargar eventos:', error);
+				document.getElementById('eventosContainer').innerHTML = 
+					'<div class="alerta alerta-error">Error al cargar eventos. Por favor, intente nuevamente.</div>';
+			}
+		}
+
+		// Mostrar eventos
+		function mostrarEventos(eventos) {
+			const contenedor = document.getElementById('eventosContainer');
+
+			if (eventos.length === 0) {
+				contenedor.innerHTML = `
+					<div class="tarjeta text-center">
+						<div style="font-size: 64px; margin-bottom: 16px;">🎭</div>
+						<h3>No tienes eventos todavía</h3>
+						<p style="color: var(--color-gris-medio); margin-bottom: 24px;">
+							Crea tu primer evento y comienza a gestionar boletos
+						</p>
+						<a href="./crear-evento.html" class="btn btn-primario">Crear Primer Evento</a>
+					</div>
+				`;
+				return;
+			}
+
+			contenedor.innerHTML = eventos.map(evento => {
+				const estadoColors = {
+					activo: 'background: var(--color-secundario); color: white;',
+					borrador: 'background: var(--color-advertencia); color: white;',
+					finalizado: 'background: var(--color-gris-medio); color: white;',
+					cancelado: 'background: var(--color-error); color: white;'
+				};
+
+				const porcentajeAforo = evento.aforo_maximo > 0 
+					? ((evento.aforo_actual || 0) / evento.aforo_maximo * 100).toFixed(0)
+					: 0;
+
+				return `
+					<div class="tarjeta mb-lg">
+						<div style="display: flex; gap: 24px; flex-wrap: wrap;">
+							<!-- Imagen -->
+							<div style="flex: 0 0 250px;">
+								<img 
+									src="${evento.imagen_url || 'https://via.placeholder.com/250x150/2B6CB0/ffffff?text=Evento'}" 
+									alt="${evento.nombre}"
+									style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px;">
+							</div>
+
+							<!-- Información -->
+							<div style="flex: 1; min-width: 300px;">
+								<div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; gap: 16px;">
+									<h3 style="margin: 0;">${evento.nombre}</h3>
+									<span style="padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 600; ${estadoColors[evento.estado]}">
+										${evento.estado.toUpperCase()}
+									</span>
+								</div>
+
+								<div style="color: var(--color-gris-medio); margin-bottom: 8px;">
+									📅 ${formatearFecha(evento.fecha_inicio)} - ${formatearFecha(evento.fecha_fin)}
+								</div>
+
+								<div style="color: var(--color-gris-medio); margin-bottom: 12px;">
+									📍 ${evento.ubicacion}
+								</div>
+
+								<!-- Estadísticas -->
+								<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 16px; padding: 12px; background: var(--color-fondo); border-radius: 8px;">
+									<div>
+										<div style="font-size: 24px; font-weight: 700; color: var(--color-primario);">
+											${evento.aforo_actual || 0} / ${evento.aforo_maximo}
+										</div>
+										<div style="font-size: 12px; color: var(--color-gris-medio);">Asistentes</div>
+										<div style="width: 100%; background: var(--color-gris-claro); height: 4px; border-radius: 2px; margin-top: 4px;">
+											<div style="width: ${porcentajeAforo}%; background: var(--color-primario); height: 100%; border-radius: 2px;"></div>
+										</div>
+									</div>
+									<div>
+										<div style="font-size: 24px; font-weight: 700; color: var(--color-secundario);">
+											${evento.total_boletos_vendidos || 0}
+										</div>
+										<div style="font-size: 12px; color: var(--color-gris-medio);">Boletos Vendidos</div>
+									</div>
+								</div>
+
+								<!-- Acciones -->
+								<div style="display: flex; gap: 12px; flex-wrap: wrap;">
+									<a href="./editar-evento.html?id=${evento.id}" class="btn btn-primario btn-sm">
+										✏️ Editar
+									</a>
+									<a href="./estadisticas.html?id=${evento.id}" class="btn btn-secundario btn-sm">
+										📊 Estadísticas
+									</a>
+									<a href="../evento-detalle.html?id=${evento.id}" class="btn btn-secundario btn-sm" target="_blank">
+										👁️ Ver Público
+									</a>
+									${evento.estado === 'activo' ? `
+										<button class="btn btn-advertencia btn-sm" onclick="cambiarEstado('${evento.id}', 'finalizado')">
+											Finalizar
+										</button>
+									` : ''}
+									${evento.estado === 'borrador' ? `
+										<button class="btn btn-secundario btn-sm" onclick="cambiarEstado('${evento.id}', 'activo')">
+											✓ Publicar
+										</button>
+									` : ''}
+									<button class="btn btn-error btn-sm" onclick="eliminarEvento('${evento.id}', '${evento.nombre}')">
+										🗑️ Eliminar
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				`;
+			}).join('');
+		}
+
+		// Cambiar estado del evento
+		async function cambiarEstado(eventoId, nuevoEstado) {
+			const mensaje = nuevoEstado === 'activo' 
+				? '¿Publicar este evento para que sea visible al público?'
+				: '¿Finalizar este evento?';
+
+			if (!confirmarAccion(mensaje)) {
+				return;
+			}
+
+			try {
+				await apiCliente.patch(`/eventos/${eventoId}/estado`, { estado: nuevoEstado });
+				mostrarToast(`Evento ${nuevoEstado === 'activo' ? 'publicado' : 'finalizado'} exitosamente`, 'exito');
+				await cargarEventos();
+			} catch (error) {
+				console.error('Error al cambiar estado:', error);
+				mostrarToast(error.message || 'Error al cambiar estado del evento', 'error');
+			}
+		}
+
+		// Eliminar evento
+		async function eliminarEvento(eventoId, nombreEvento) {
+			if (!confirmarAccion(`¿Está seguro que desea eliminar el evento "${nombreEvento}"? Esta acción no se puede deshacer.`)) {
+				return;
+			}
+
+			try {
+				await apiCliente.delete(`/eventos/${eventoId}`);
+				mostrarToast('Evento eliminado exitosamente', 'exito');
+				await cargarEventos();
+			} catch (error) {
+				console.error('Error al eliminar evento:', error);
+				mostrarToast(error.message || 'Error al eliminar el evento', 'error');
+			}
+		}
+
+		// Event listeners
+		document.addEventListener('DOMContentLoaded', () => {
+			cargarEventos();
+			
+			document.getElementById('filtroEstado').addEventListener('change', cargarEventos);
+		});
+	</script>
+</body>
+</html>
+

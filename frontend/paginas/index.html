@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Inicio - Sistema de Gestión de Eventos</title>
+	<link rel="stylesheet" href="../estilos/global.css">
+	<link rel="stylesheet" href="../estilos/componentes.css">
+</head>
+<body>
+	<!-- Header -->
+	<div id="headerContainer"></div>
+
+	<!-- Hero Section -->
+	<section class="hero" style="background: linear-gradient(135deg, #2B6CB0 0%, #2C5282 100%); color: white; padding: 80px 0;">
+		<div class="contenedor text-center">
+			<h1 style="color: white; font-size: 48px; margin-bottom: 24px;">Gestiona tus Eventos de Forma Profesional</h1>
+			<p style="font-size: 20px; margin-bottom: 32px; color: rgba(255,255,255,0.9);">
+				Plataforma completa para organizar eventos, vender boletos y controlar el acceso
+			</p>
+			<a href="./eventos.html" class="btn btn-secundario btn-lg" style="background: white; color: #2B6CB0;">Ver Eventos</a>
+		</div>
+	</section>
+
+	<!-- Sección de Eventos Próximos -->
+	<section style="padding: 60px 0;">
+		<div class="contenedor">
+			<h2 class="text-center mb-xl">Próximos Eventos</h2>
+			<div id="eventosProximos" class="grid grid-auto">
+				<div class="loader"></div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Características -->
+	<section style="background-color: var(--color-fondo); padding: 60px 0;">
+		<div class="contenedor">
+			<h2 class="text-center mb-xl">¿Por qué elegirnos?</h2>
+			<div class="grid grid-3">
+				<div class="tarjeta text-center">
+					<div style="font-size: 48px; margin-bottom: 16px;">🎟️</div>
+					<h3>Boletos Digitales</h3>
+					<p>Boletos con código QR únicos, descargables en PDF.</p>
+				</div>
+				<div class="tarjeta text-center">
+					<div style="font-size: 48px; margin-bottom: 16px;">📊</div>
+					<h3>Reportes en Tiempo Real</h3>
+					<p>Estadísticas detalladas y reportes descargables.</p>
+				</div>
+				<div class="tarjeta text-center">
+					<div style="font-size: 48px; margin-bottom: 16px;">✓</div>
+					<h3>Control de Acceso</h3>
+					<p>Validación de boletos mediante escaneo QR.</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Footer -->
+	<div id="footerContainer"></div>
+
+	<!-- Scripts -->
+	<script src="../scripts/config.js"></script>
+	<script src="../scripts/api-cliente.js"></script>
+	<script src="../scripts/auth.js"></script>
+	<script src="../scripts/utilidades.js"></script>
+	<script>
+		// Cargar componentes
+		async function cargarComponente(url, containerId) {
+			try {
+				const response = await fetch(url);
+				const html = await response.text();
+				document.getElementById(containerId).innerHTML = html;
+			} catch (error) {
+				console.error('Error al cargar componente:', error);
+			}
+		}
+
+		// Cargar header y footer
+		cargarComponente('../componentes/header.html', 'headerContainer');
+		cargarComponente('../componentes/footer.html', 'footerContainer');
+
+		// Cargar eventos próximos
+		async function cargarEventosProximos() {
+			try {
+				const response = await apiCliente.get('/eventos/proximos?limite=6');
+				const contenedor = document.getElementById('eventosProximos');
+
+				if (response.datos && response.datos.length > 0) {
+					contenedor.innerHTML = response.datos.map(evento => `
+						<div class="tarjeta-evento" onclick="window.location.href='./evento-detalle.html?id=${evento.id}'">
+							<img src="${evento.imagen_url || 'https://via.placeholder.com/400x200'}" 
+								 alt="${evento.nombre}" 
+								 class="tarjeta-evento-imagen">
+							<div class="tarjeta-evento-contenido">
+								<h3 class="tarjeta-evento-titulo">${evento.nombre}</h3>
+								<div class="tarjeta-evento-fecha">
+									📅 ${formatearFecha(evento.fecha_inicio)}
+								</div>
+								<div class="tarjeta-evento-ubicacion">
+									📍 ${evento.ubicacion}
+								</div>
+								<p class="tarjeta-evento-descripcion">
+									${truncarTexto(evento.descripcion || 'Sin descripción', 120)}
+								</p>
+								<div class="tarjeta-evento-footer">
+									<button class="btn btn-primario btn-sm">Ver Detalles</button>
+								</div>
+							</div>
+						</div>
+					`).join('');
+				} else {
+					contenedor.innerHTML = '<p class="text-center">No hay eventos próximos en este momento.</p>';
+				}
+			} catch (error) {
+				console.error('Error al cargar eventos:', error);
+				document.getElementById('eventosProximos').innerHTML = 
+					'<p class="text-center alerta alerta-error">Error al cargar eventos</p>';
+			}
+		}
+
+		// Inicializar
+		window.addEventListener('DOMContentLoaded', () => {
+			cargarEventosProximos();
+		});
+	</script>
+</body>
+</html>
+

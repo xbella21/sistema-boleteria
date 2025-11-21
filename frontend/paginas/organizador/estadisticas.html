@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Estadísticas - Organizador</title>
+	<link rel="stylesheet" href="../../estilos/global.css">
+	<link rel="stylesheet" href="../../estilos/componentes.css">
+</head>
+<body>
+	<div id="headerContainer"></div>
+
+	<section style="padding: 60px 0;">
+		<div class="contenedor">
+			<a href="./eventos.html" class="btn btn-secundario mb-lg">← Volver a Mis Eventos</a>
+			
+			<div id="loadingContainer" class="text-center"><div class="loader"></div></div>
+
+			<div id="contenidoContainer" class="oculto">
+				<h1 id="tituloEvento"></h1>
+
+				<div class="grid grid-4 mb-xl">
+					<div class="tarjeta text-center">
+						<div style="font-size: 48px; color: var(--color-primario); font-weight: 700;" id="totalBoletos">0</div>
+						<div>Boletos Vendidos</div>
+					</div>
+					<div class="tarjeta text-center">
+						<div style="font-size: 48px; color: var(--color-secundario); font-weight: 700;" id="totalIngresos">$0</div>
+						<div>Ingresos Totales</div>
+					</div>
+					<div class="tarjeta text-center">
+						<div style="font-size: 48px; color: var(--color-info); font-weight: 700;" id="aforoActual">0</div>
+						<div>Aforo Actual</div>
+					</div>
+					<div class="tarjeta text-center">
+						<div style="font-size: 48px; color: var(--color-gris-medio); font-weight: 700;" id="porcentajeAforo">0%</div>
+						<div>% Aforo</div>
+					</div>
+				</div>
+
+				<div class="tarjeta mb-lg">
+					<h2>Boletos por Categoría</h2>
+					<div id="categorias Container"></div>
+				</div>
+
+				<div class="tarjeta">
+					<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+						<h2 style="margin: 0;">Reportes</h2>
+					</div>
+					<div style="display: flex; gap: 12px; flex-wrap: wrap;">
+						<button class="btn btn-primario" onclick="descargarReportePDF()">📄 Descargar PDF</button>
+						<button class="btn btn-secundario" onclick="descargarReporteExcel()">📊 Descargar Excel</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<div id="footerContainer"></div>
+
+	<script src="../../scripts/config.js"></script>
+	<script src="../../scripts/api-cliente.js"></script>
+	<script src="../../scripts/auth.js"></script>
+	<script src="../../scripts/utilidades.js"></script>
+	<script src="../../scripts/header.js"></script>
+	<script>
+		fetch('../../componentes/header.html').then(r => r.text()).then(h => document.getElementById('headerContainer').innerHTML = h);
+		fetch('../../componentes/footer.html').then(r => r.text()).then(h => document.getElementById('footerContainer').innerHTML = h);
+
+		if (!Auth.requiereRol([CONFIG.ROLES.ORGANIZADOR, CONFIG.ROLES.ADMINISTRADOR])) {}
+
+		const params = obtenerParametrosURL();
+		const eventoId = params.id;
+
+		if (!eventoId) {
+			mostrarToast('ID de evento no especificado', 'error');
+			setTimeout(() => window.location.href = './eventos.html', 2000);
+		}
+
+		async function cargarEstadisticas() {
+			try {
+				const [eventoRes, estadisticasRes] = await Promise.all([
+					apiCliente.get(`/eventos/${eventoId}`),
+					apiCliente.get(`/eventos/${eventoId}/estadisticas`)
+				]);
+
+				const evento = eventoRes.datos;
+				const stats = estadisticasRes.datos;
+
+				document.getElementById('tituloEvento').textContent = `Estadísticas: ${evento.nombre}`;
+				document.getElementById('totalBoletos').textContent = stats.total_boletos_vendidos || 0;
+				document.getElementById('totalIngresos').textContent = formatearPrecio(stats.ingresos_totales || 0);
+				document.getElementById('aforoActual').textContent = evento.aforo_actual || 0;
+				
+				const porcentaje = evento.aforo_maximo > 0 
+					? ((evento.aforo_actual || 0) / evento.aforo_maximo * 100).toFixed(1)
+					: 0;
+				document.getElementById('porcentajeAforo').textContent = porcentaje + '%';
+
+				const categoriasContainer = document.getElementById('categoriasContainer');
+				if (stats.por_categoria && stats.por_categoria.length > 0) {
+					categoriasContainer.innerHTML = stats.por_categoria.map(cat => `
+						<div class="mb-md" style="padding: 16px; background: var(--color-fondo); border-radius: 8px;">
+							<div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+								<h4 style="margin: 0;">${cat.nombre}</h4>
+								<span style="font-weight: 700; color: var(--color-primario);">${cat.vendidos} vendidos</span>
+							</div>
+							<div style="display: flex; gap: 16px; color: var(--color-gris-medio); font-size: 14px;">
+								<span>Precio: ${formatearPrecio(cat.precio)}</span>
+								<span>Ingresos: ${formatearPrecio(cat.ingresos)}</span>
+							</div>
+						</div>
+					`).join('');
+				} else {
+					categoriasContainer.innerHTML = '<p style="color: var(--color-gris-medio);">No hay datos de ventas</p>';
+				}
+
+				document.getElementById('loadingContainer').classList.add('oculto');
+				document.getElementById('contenidoContainer').classList.remove('oculto');
+
+			} catch (error) {
+				console.error('Error al cargar estadísticas:', error);
+				mostrarToast('Error al cargar estadísticas', 'error');
+			}
+		}
+
+		async function descargarReportePDF() {
+			try {
+				mostrarToast('Generando reporte PDF...', 'info');
+				await apiCliente.descargar(`/reportes/ventas/${eventoId}/pdf`, `reporte-evento-${eventoId}.pdf`);
+			} catch (error) {
+				console.error('Error:', error);
+				mostrarToast('Error al descargar reporte', 'error');
+			}
+		}
+
+		async function descargarReporteExcel() {
+			try {
+				mostrarToast('Generando reporte Excel...', 'info');
+				await apiCliente.descargar(`/reportes/ventas/${eventoId}/excel`, `reporte-evento-${eventoId}.xlsx`);
+			} catch (error) {
+				console.error('Error:', error);
+				mostrarToast('Error al descargar reporte', 'error');
+			}
+		}
+
+		document.addEventListener('DOMContentLoaded', cargarEstadisticas);
+	</script>
+</body>
+</html>
+

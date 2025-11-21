@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Detalle del Evento - Sistema de Gestión de Eventos</title>
+	<link rel="stylesheet" href="../estilos/global.css">
+	<link rel="stylesheet" href="../estilos/componentes.css">
+</head>
+<body>
+	<div id="headerContainer"></div>
+
+	<section style="padding: 60px 0;">
+		<div class="contenedor">
+			<div id="loadingContainer" class="text-center">
+				<div class="loader"></div>
+			</div>
+
+			<div id="eventoContainer" class="oculto">
+				<!-- Botón volver -->
+				<a href="./eventos.html" class="btn btn-secundario mb-lg">← Volver a Eventos</a>
+
+				<!-- Información del evento -->
+				<div class="tarjeta mb-xl">
+					<img id="eventoImagen" src="" alt="" style="width: 100%; max-height: 400px; object-fit: cover; border-radius: 8px; margin-bottom: 24px;">
+					
+					<h1 id="eventoNombre"></h1>
+					
+					<div style="display: flex; gap: 32px; flex-wrap: wrap; margin-bottom: 24px; color: var(--color-gris-medio);">
+						<div>
+							<strong>📅 Fecha:</strong>
+							<div id="eventoFecha"></div>
+						</div>
+						<div>
+							<strong>📍 Ubicación:</strong>
+							<div id="eventoUbicacion"></div>
+						</div>
+						<div>
+							<strong>👥 Aforo:</strong>
+							<div id="eventoAforo"></div>
+						</div>
+						<div>
+							<strong>📊 Estado:</strong>
+							<div id="eventoEstado"></div>
+						</div>
+					</div>
+
+					<div>
+						<strong>Descripción:</strong>
+						<p id="eventoDescripcion" style="margin-top: 8px; line-height: 1.6;"></p>
+					</div>
+
+					<div id="eventoDireccion" style="margin-top: 16px;">
+						<strong>Dirección:</strong>
+						<p style="margin-top: 8px; color: var(--color-gris-medio);"></p>
+					</div>
+				</div>
+
+				<!-- Categorías de entradas -->
+				<div class="tarjeta">
+					<h2>Entradas Disponibles</h2>
+					<div id="categoriasContainer"></div>
+				</div>
+			</div>
+
+			<!-- Mensaje de error -->
+			<div id="errorContainer" class="oculto">
+				<div class="alerta alerta-error">
+					<p id="errorMensaje"></p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Modal de compra -->
+	<div id="modalCompra" class="modal oculto">
+		<div class="modal-contenido" style="max-width: 500px;">
+			<div class="modal-header">
+				<h3>Comprar Boletos</h3>
+				<button class="modal-cerrar" onclick="cerrarModal()">×</button>
+			</div>
+			<div class="modal-body">
+				<div class="form-grupo">
+					<label class="form-label">Categoría</label>
+					<p id="modalCategoriaNombre" style="font-weight: 600;"></p>
+				</div>
+				<div class="form-grupo">
+					<label class="form-label">Precio por boleto</label>
+					<p id="modalCategoriaPrecio" style="font-size: 20px; color: var(--color-primario); font-weight: 600;"></p>
+				</div>
+				<div class="form-grupo">
+					<label class="form-label" for="cantidadBoletos">Cantidad de boletos</label>
+					<input type="number" id="cantidadBoletos" class="form-input" min="1" value="1" onchange="actualizarTotal()">
+					<small id="disponiblesInfo" style="color: var(--color-gris-medio);"></small>
+				</div>
+				<div class="form-grupo">
+					<label class="form-label">Total a pagar</label>
+					<p id="totalPagar" style="font-size: 24px; color: var(--color-primario); font-weight: 700;"></p>
+				</div>
+				<div id="errorCompra" class="alerta alerta-error oculto"></div>
+			</div>
+			<div class="modal-footer">
+				<button class="btn btn-secundario" onclick="cerrarModal()">Cancelar</button>
+				<button class="btn btn-primario" id="btnConfirmarCompra" onclick="confirmarCompra()">Confirmar Compra</button>
+			</div>
+		</div>
+	</div>
+
+	<div id="footerContainer"></div>
+
+	<script src="../scripts/config.js"></script>
+	<script src="../scripts/api-cliente.js"></script>
+	<script src="../scripts/auth.js"></script>
+	<script src="../scripts/utilidades.js"></script>
+	<script src="../scripts/header.js"></script>
+	<script>
+		// Cargar componentes
+		fetch('../componentes/header.html').then(r => r.text()).then(h => document.getElementById('headerContainer').innerHTML = h);
+		fetch('../componentes/footer.html').then(r => r.text()).then(h => document.getElementById('footerContainer').innerHTML = h);
+
+		// Variables globales
+		let eventoActual = null;
+		let categoriaSeleccionada = null;
+
+		// Obtener ID del evento de la URL
+		const params = obtenerParametrosURL();
+		const eventoId = params.id;
+
+		if (!eventoId) {
+			mostrarError('No se especificó el evento');
+		} else {
+			cargarEvento();
+		}
+
+		// Cargar evento
+		async function cargarEvento() {
+			try {
+				const response = await apiCliente.get(`/eventos/${eventoId}`);
+				eventoActual = response.datos;
+				
+				mostrarEvento();
+				
+				document.getElementById('loadingContainer').classList.add('oculto');
+				document.getElementById('eventoContainer').classList.remove('oculto');
+
+			} catch (error) {
+				console.error('Error al cargar evento:', error);
+				mostrarError('Error al cargar el evento. Por favor, intente nuevamente.');
+			}
+		}
+
+		// Mostrar evento
+		function mostrarEvento() {
+			const evento = eventoActual;
+
+			document.title = `${evento.nombre} - Sistema de Gestión de Eventos`;
+			document.getElementById('eventoNombre').textContent = evento.nombre;
+			document.getElementById('eventoImagen').src = evento.imagen_url || 'https://via.placeholder.com/1200x400/2B6CB0/ffffff?text=Evento';
+			document.getElementById('eventoImagen').alt = evento.nombre;
+			document.getElementById('eventoFecha').textContent = formatearFecha(evento.fecha_inicio) + ' - ' + formatearFecha(evento.fecha_fin);
+			document.getElementById('eventoUbicacion').textContent = evento.ubicacion;
+			document.getElementById('eventoAforo').textContent = `${evento.aforo_actual || 0} / ${evento.aforo_maximo}`;
+			document.getElementById('eventoDescripcion').textContent = evento.descripcion || 'Sin descripción';
+
+			// Estado con colores
+			const estadoDiv = document.getElementById('eventoEstado');
+			const estadoColors = {
+				activo: 'color: var(--color-secundario); font-weight: 600;',
+				cancelado: 'color: var(--color-error); font-weight: 600;',
+				finalizado: 'color: var(--color-gris-medio); font-weight: 600;',
+				borrador: 'color: var(--color-advertencia); font-weight: 600;'
+			};
+			estadoDiv.innerHTML = `<span style="${estadoColors[evento.estado] || ''}">${evento.estado.toUpperCase()}</span>`;
+
+			// Dirección
+			if (evento.direccion) {
+				document.getElementById('eventoDireccion').querySelector('p').textContent = evento.direccion;
+			} else {
+				document.getElementById('eventoDireccion').style.display = 'none';
+			}
+
+			// Mostrar categorías
+			mostrarCategorias();
+		}
+
+		// Mostrar categorías
+		function mostrarCategorias() {
+			const contenedor = document.getElementById('categoriasContainer');
+			const categorias = eventoActual.categorias || [];
+
+			if (categorias.length === 0) {
+				contenedor.innerHTML = '<p class="text-center" style="color: var(--color-gris-medio); padding: 24px;">No hay entradas disponibles para este evento.</p>';
+				return;
+			}
+
+			contenedor.innerHTML = categorias.map(categoria => {
+				const disponibles = categoria.cantidad_disponible - (categoria.cantidad_vendida || 0);
+				const porcentajeVendido = categoria.cantidad_disponible > 0 
+					? ((categoria.cantidad_vendida || 0) / categoria.cantidad_disponible * 100).toFixed(0)
+					: 0;
+				const agotado = disponibles <= 0;
+
+				return `
+					<div class="tarjeta" style="margin-bottom: 16px; ${agotado ? 'opacity: 0.6;' : ''}">
+						<div style="display: flex; justify-content: space-between; align-items: start; gap: 16px; flex-wrap: wrap;">
+							<div style="flex: 1; min-width: 200px;">
+								<h3 style="margin-bottom: 8px;">${categoria.nombre}</h3>
+								${categoria.descripcion ? `<p style="color: var(--color-gris-medio); margin-bottom: 12px;">${categoria.descripcion}</p>` : ''}
+								<div style="margin-bottom: 8px;">
+									<span style="font-size: 24px; color: var(--color-primario); font-weight: 700;">
+										${formatearPrecio(categoria.precio)}
+									</span>
+								</div>
+								<div style="margin-bottom: 8px;">
+									<small style="color: var(--color-gris-medio);">
+										${agotado ? '🚫 Agotado' : `✓ ${disponibles} disponibles`}
+									</small>
+								</div>
+								<div style="width: 100%; background: var(--color-gris-claro); height: 8px; border-radius: 4px; overflow: hidden;">
+									<div style="width: ${porcentajeVendido}%; background: var(--color-primario); height: 100%;"></div>
+								</div>
+								<small style="color: var(--color-gris-medio);">${porcentajeVendido}% vendido</small>
+							</div>
+							<div>
+								<button 
+									class="btn btn-primario"
+									onclick="abrirModalCompra('${categoria.id}', '${categoria.nombre}', ${categoria.precio}, ${disponibles})"
+									${agotado || eventoActual.estado !== 'activo' ? 'disabled' : ''}
+								>
+									${agotado ? 'Agotado' : 'Comprar'}
+								</button>
+							</div>
+						</div>
+					</div>
+				`;
+			}).join('');
+		}
+
+		// Abrir modal de compra
+		function abrirModalCompra(categoriaId, nombre, precio, disponibles) {
+			// Verificar autenticación
+			if (!Auth.estaAutenticado()) {
+				mostrarToast('Debe iniciar sesión para comprar boletos', 'advertencia');
+				setTimeout(() => {
+					window.location.href = './login.html?redirect=' + encodeURIComponent(window.location.href);
+				}, 1500);
+				return;
+			}
+
+			categoriaSeleccionada = {
+				id: categoriaId,
+				nombre: nombre,
+				precio: precio,
+				disponibles: disponibles
+			};
+
+			document.getElementById('modalCategoriaNombre').textContent = nombre;
+			document.getElementById('modalCategoriaPrecio').textContent = formatearPrecio(precio);
+			document.getElementById('disponiblesInfo').textContent = `Disponibles: ${disponibles}`;
+			document.getElementById('cantidadBoletos').max = disponibles;
+			document.getElementById('cantidadBoletos').value = 1;
+			document.getElementById('errorCompra').classList.add('oculto');
+			
+			actualizarTotal();
+			
+			document.getElementById('modalCompra').classList.remove('oculto');
+		}
+
+		// Cerrar modal
+		function cerrarModal() {
+			document.getElementById('modalCompra').classList.add('oculto');
+			categoriaSeleccionada = null;
+		}
+
+		// Actualizar total
+		function actualizarTotal() {
+			const cantidad = parseInt(document.getElementById('cantidadBoletos').value) || 1;
+			const total = categoriaSeleccionada.precio * cantidad;
+			document.getElementById('totalPagar').textContent = formatearPrecio(total);
+		}
+
+		// Confirmar compra
+		async function confirmarCompra() {
+			const cantidad = parseInt(document.getElementById('cantidadBoletos').value) || 1;
+			const btnComprar = document.getElementById('btnConfirmarCompra');
+			const errorDiv = document.getElementById('errorCompra');
+
+			// Validar cantidad
+			if (cantidad < 1) {
+				errorDiv.textContent = 'Debe seleccionar al menos 1 boleto';
+				errorDiv.classList.remove('oculto');
+				return;
+			}
+
+			if (cantidad > categoriaSeleccionada.disponibles) {
+				errorDiv.textContent = `Solo hay ${categoriaSeleccionada.disponibles} boletos disponibles`;
+				errorDiv.classList.remove('oculto');
+				return;
+			}
+
+			try {
+				errorDiv.classList.add('oculto');
+				btnComprar.disabled = true;
+				btnComprar.textContent = 'Procesando...';
+
+				const response = await apiCliente.post('/boletos/comprar', {
+					evento_id: eventoId,
+					categoria_id: categoriaSeleccionada.id,
+					cantidad: cantidad
+				});
+
+				mostrarToast('¡Compra realizada exitosamente!', 'exito');
+				cerrarModal();
+				
+				// Recargar evento para actualizar disponibilidad
+				await cargarEvento();
+				
+				// Redirigir a mis boletos
+				setTimeout(() => {
+					window.location.href = './mis-boletos.html';
+				}, 2000);
+
+			} catch (error) {
+				console.error('Error al comprar boletos:', error);
+				errorDiv.textContent = error.message || 'Error al procesar la compra';
+				errorDiv.classList.remove('oculto');
+				btnComprar.disabled = false;
+				btnComprar.textContent = 'Confirmar Compra';
+			}
+		}
+
+		// Mostrar error
+		function mostrarError(mensaje) {
+			document.getElementById('loadingContainer').classList.add('oculto');
+			document.getElementById('eventoContainer').classList.add('oculto');
+			document.getElementById('errorContainer').classList.remove('oculto');
+			document.getElementById('errorMensaje').textContent = mensaje;
+		}
+
+		// Cerrar modal al hacer clic fuera
+		window.onclick = function(event) {
+			const modal = document.getElementById('modalCompra');
+			if (event.target === modal) {
+				cerrarModal();
+			}
+		}
+	</script>
+</body>
+</html>
+

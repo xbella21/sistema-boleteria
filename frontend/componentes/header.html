@@ -1,0 +1,53 @@
+<!-- Componente Header -->
+<header class="header" id="header">
+	<div class="header-contenedor">
+		<a href="#" class="header-logo" data-link="index.html">
+			Sistema de Eventos
+		</a>
+
+		<button class="header-menu-toggle" id="menuToggle" aria-label="Menú">
+			☰
+		</button>
+
+		<nav class="header-nav" id="headerNav">
+			<a href="#" class="header-nav-link" data-link="index.html">Inicio</a>
+			<a href="#" class="header-nav-link" data-link="eventos.html">Eventos</a>
+			
+			<!-- Links para usuarios autenticados -->
+			<div id="navUsuarioAutenticado" class="oculto">
+				<a href="#" class="header-nav-link" data-link="mis-boletos.html">Mis Boletos</a>
+				<a href="#" class="header-nav-link" data-link="perfil.html">Perfil</a>
+			</div>
+
+			<!-- Links para organizadores -->
+			<div id="navOrganizador" class="oculto">
+				<a href="#" class="header-nav-link" data-link="organizador/eventos.html">Mis Eventos</a>
+			</div>
+
+			<!-- Links para administradores -->
+			<div id="navAdministrador" class="oculto">
+				<a href="#" class="header-nav-link" data-link="admin/dashboard.html">Dashboard</a>
+			</div>
+
+			<!-- Links para taquilla -->
+			<div id="navTaquilla" class="oculto">
+				<a href="#" class="header-nav-link" data-link="taquilla/scanner.html">Escanear</a>
+			</div>
+		</nav>
+
+		<div class="header-usuario">
+			<!-- Usuario no autenticado -->
+			<div id="usuarioNoAutenticado">
+				<a href="#" class="btn btn-secundario btn-sm" data-link="login.html">Iniciar Sesión</a>
+				<a href="#" class="btn btn-primario btn-sm" data-link="registro.html">Registrarse</a>
+			</div>
+
+			<!-- Usuario autenticado -->
+			<div id="usuarioAutenticado" class="oculto">
+				<span class="header-usuario-nombre" id="nombreUsuario">Usuario</span>
+				<button class="btn btn-secundario btn-sm" id="btnCerrarSesion">Cerrar Sesión</button>
+			</div>
+		</div>
+	</div>
+</header>
+

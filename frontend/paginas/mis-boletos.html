@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Mis Boletos - Sistema de Gestión de Eventos</title>
+	<link rel="stylesheet" href="../estilos/global.css">
+	<link rel="stylesheet" href="../estilos/componentes.css">
+</head>
+<body>
+	<div id="headerContainer"></div>
+
+	<section style="padding: 60px 0;">
+		<div class="contenedor">
+			<h1>Mis Boletos</h1>
+
+			<!-- Filtros -->
+			<div class="tarjeta mb-lg">
+				<div style="display: flex; gap: 16px; flex-wrap: wrap;">
+					<select id="filtroEstado" class="form-input" style="max-width: 200px;">
+						<option value="">Todos los boletos</option>
+						<option value="valido">Válidos</option>
+						<option value="usado">Usados</option>
+						<option value="cancelado">Cancelados</option>
+					</select>
+				</div>
+			</div>
+
+			<!-- Contenedor de boletos -->
+			<div id="boletosContainer">
+				<div class="loader"></div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Modal de detalle de boleto -->
+	<div id="modalBoleto" class="modal oculto">
+		<div class="modal-contenido" style="max-width: 600px;">
+			<div class="modal-header">
+				<h3>Detalle del Boleto</h3>
+				<button class="modal-cerrar" onclick="cerrarModal()">×</button>
+			</div>
+			<div class="modal-body" id="modalBoletoBody">
+				<!-- Se llenará dinámicamente -->
+			</div>
+			<div class="modal-footer">
+				<button class="btn btn-secundario" onclick="cerrarModal()">Cerrar</button>
+				<button class="btn btn-primario" id="btnDescargar" onclick="descargarBoleto()">Descargar PDF</button>
+			</div>
+		</div>
+	</div>
+
+	<div id="footerContainer"></div>
+
+	<script src="../scripts/config.js"></script>
+	<script src="../scripts/api-cliente.js"></script>
+	<script src="../scripts/auth.js"></script>
+	<script src="../scripts/utilidades.js"></script>
+	<script src="../scripts/header.js"></script>
+	<script>
+		// Cargar componentes
+		fetch('../componentes/header.html').then(r => r.text()).then(h => document.getElementById('headerContainer').innerHTML = h);
+		fetch('../componentes/footer.html').then(r => r.text()).then(h => document.getElementById('footerContainer').innerHTML = h);
+
+		// Verificar autenticación
+		if (!Auth.requiereAutenticacion()) {
+			// Ya redirige automáticamente
+		}
+
+		// Variables
+		let boletos = [];
+		let boletoSeleccionado = null;
+
+		// Cargar boletos
+		async function cargarBoletos() {
+			try {
+				const response = await apiCliente.get('/boletos/mis-boletos');
+				boletos = response.datos || [];
+				
+				mostrarBoletos();
+
+			} catch (error) {
+				console.error('Error al cargar boletos:', error);
+				document.getElementById('boletosContainer').innerHTML = 
+					'<div class="alerta alerta-error">Error al cargar boletos. Por favor, intente nuevamente.</div>';
+			}
+		}
+
+		// Mostrar boletos
+		function mostrarBoletos() {
+			const contenedor = document.getElementById('boletosContainer');
+			const filtroEstado = document.getElementById('filtroEstado').value;
+
+			let boletosFiltrados = boletos;
+			if (filtroEstado) {
+				boletosFiltrados = boletos.filter(b => b.estado === filtroEstado);
+			}
+
+			if (boletosFiltrados.length === 0) {
+				contenedor.innerHTML = `
+					<div class="tarjeta text-center">
+						<div style="font-size: 64px; margin-bottom: 16px;">🎟️</div>
+						<h3>No tienes boletos${filtroEstado ? ' con ese estado' : ''}</h3>
+						<p style="color: var(--color-gris-medio); margin-bottom: 24px;">
+							Explora nuestros eventos y compra tu primer boleto
+						</p>
+						<a href="./eventos.html" class="btn btn-primario">Ver Eventos</a>
+					</div>
+				`;
+				return;
+			}
+
+			contenedor.innerHTML = boletosFiltrados.map(boleto => {
+				const estadoColors = {
+					valido: 'background: var(--color-secundario); color: white;',
+					usado: 'background: var(--color-gris-medio); color: white;',
+					cancelado: 'background: var(--color-error); color: white;'
+				};
+
+				const estadoIconos = {
+					valido: '✓',
+					usado: '✓',
+					cancelado: '✗'
+				};
+
+				return `
+					<div class="tarjeta mb-lg">
+						<div style="display: flex; gap: 24px; flex-wrap: wrap;">
+							<!-- Imagen del evento -->
+							<div style="flex: 0 0 200px;">
+								<img 
+									src="${boleto.evento_imagen_url || 'https://via.placeholder.com/200x150/2B6CB0/ffffff?text=Evento'}" 
+									alt="${boleto.evento_nombre}"
+									style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px;">
+							</div>
+
+							<!-- Información del boleto -->
+							<div style="flex: 1; min-width: 250px;">
+								<div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+									<h3 style="margin: 0;">${boleto.evento_nombre}</h3>
+									<span style="padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 600; ${estadoColors[boleto.estado]}">
+										${estadoIconos[boleto.estado]} ${boleto.estado.toUpperCase()}
+									</span>
+								</div>
+
+								<div style="color: var(--color-gris-medio); margin-bottom: 8px;">
+									<strong>Categoría:</strong> ${boleto.categoria_nombre}
+								</div>
+
+								<div style="color: var(--color-gris-medio); margin-bottom: 8px;">
+									<strong>Fecha del evento:</strong> ${formatearFecha(boleto.evento_fecha_inicio)}
+								</div>
+
+								<div style="color: var(--color-gris-medio); margin-bottom: 8px;">
+									<strong>Ubicación:</strong> ${boleto.evento_ubicacion}
+								</div>
+
+								<div style="color: var(--color-gris-medio); margin-bottom: 8px;">
+									<strong>Precio pagado:</strong> 
+									<span style="color: var(--color-primario); font-weight: 600; font-size: 18px;">
+										${formatearPrecio(boleto.precio_pagado)}
+									</span>
+								</div>
+
+								<div style="color: var(--color-gris-medio); font-size: 12px; margin-bottom: 16px;">
+									<strong>Comprado:</strong> ${formatearFecha(boleto.fecha_compra)}
+									${boleto.fecha_uso ? `<br><strong>Usado:</strong> ${formatearFecha(boleto.fecha_uso)}` : ''}
+								</div>
+
+								<!-- Botones de acción -->
+								<div style="display: flex; gap: 12px; flex-wrap: wrap;">
+									<button class="btn btn-primario btn-sm" onclick="verDetalleBoleto('${boleto.id}')">
+										Ver Detalle
+									</button>
+									<button class="btn btn-secundario btn-sm" onclick="descargarBoletoPDF('${boleto.id}', '${boleto.evento_nombre}')">
+										📄 Descargar PDF
+									</button>
+									${boleto.estado === 'valido' ? `
+										<button class="btn btn-error btn-sm" onclick="cancelarBoleto('${boleto.id}')">
+											Cancelar
+										</button>
+									` : ''}
+								</div>
+							</div>
+						</div>
+					</div>
+				`;
+			}).join('');
+		}
+
+		// Ver detalle de boleto
+		async function verDetalleBoleto(boletoId) {
+			try {
+				const response = await apiCliente.get(`/boletos/${boletoId}`);
+				boletoSeleccionado = response.datos;
+				
+				mostrarModalBoleto();
+
+			} catch (error) {
+				console.error('Error al cargar detalle:', error);
+				mostrarToast('Error al cargar detalle del boleto', 'error');
+			}
+		}
+
+		// Mostrar modal de boleto
+		function mostrarModalBoleto() {
+			const boleto = boletoSeleccionado;
+			const body = document.getElementById('modalBoletoBody');
+
+			const estadoColors = {
+				valido: 'color: var(--color-secundario);',
+				usado: 'color: var(--color-gris-medio);',
+				cancelado: 'color: var(--color-error);'
+			};
+
+			body.innerHTML = `
+				<div style="text-align: center; padding: 24px;">
+					<!-- Código QR (simulado) -->
+					<div style="background: white; padding: 20px; border: 2px solid var(--color-gris-claro); border-radius: 8px; display: inline-block; margin-bottom: 24px;">
+						<div style="width: 200px; height: 200px; background: url('https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(boleto.codigo_qr)}') center/contain no-repeat;"></div>
+					</div>
+
+					<div style="text-align: left; background: var(--color-fondo); padding: 20px; border-radius: 8px;">
+						<h4>${boleto.evento_nombre}</h4>
+						<hr style="margin: 12px 0; border: none; border-top: 1px solid var(--color-gris-claro);">
+						
+						<div style="margin-bottom: 8px;">
+							<strong>Código:</strong> <code style="background: var(--color-gris-claro); padding: 4px 8px; border-radius: 4px;">${boleto.codigo_qr}</code>
+						</div>
+						
+						<div style="margin-bottom: 8px;">
+							<strong>Categoría:</strong> ${boleto.categoria_nombre}
+						</div>
+						
+						<div style="margin-bottom: 8px;">
+							<strong>Fecha del evento:</strong> ${formatearFecha(boleto.evento_fecha_inicio)}
+						</div>
+						
+						<div style="margin-bottom: 8px;">
+							<strong>Ubicación:</strong> ${boleto.evento_ubicacion}
+						</div>
+						
+						<div style="margin-bottom: 8px;">
+							<strong>Estado:</strong> 
+							<span style="font-weight: 600; ${estadoColors[boleto.estado]}">
+								${boleto.estado.toUpperCase()}
+							</span>
+						</div>
+						
+						<div style="margin-bottom: 8px;">
+							<strong>Precio pagado:</strong> ${formatearPrecio(boleto.precio_pagado)}
+						</div>
+
+						<hr style="margin: 12px 0; border: none; border-top: 1px solid var(--color-gris-claro);">
+						
+						<div style="font-size: 12px; color: var(--color-gris-medio);">
+							<div>Comprado: ${formatearFecha(boleto.fecha_compra)}</div>
+							${boleto.fecha_uso ? `<div>Usado: ${formatearFecha(boleto.fecha_uso)}</div>` : ''}
+						</div>
+					</div>
+				</div>
+			`;
+
+			document.getElementById('modalBoleto').classList.remove('oculto');
+		}
+
+		// Cerrar modal
+		function cerrarModal() {
+			document.getElementById('modalBoleto').classList.add('oculto');
+			boletoSeleccionado = null;
+		}
+
+		// Descargar boleto desde modal
+		async function descargarBoleto() {
+			if (!boletoSeleccionado) return;
+			await descargarBoletoPDF(boletoSeleccionado.id, boletoSeleccionado.evento_nombre);
+		}
+
+		// Descargar boleto PDF
+		async function descargarBoletoPDF(boletoId, nombreEvento) {
+			try {
+				mostrarToast('Descargando boleto...', 'info');
+				const nombreArchivo = `boleto-${nombreEvento.replace(/[^a-z0-9]/gi, '-')}-${boletoId.substring(0, 8)}.pdf`;
+				await apiCliente.descargar(`/boletos/${boletoId}/descargar`, nombreArchivo);
+				mostrarToast('Boleto descargado exitosamente', 'exito');
+			} catch (error) {
+				console.error('Error al descargar boleto:', error);
+				mostrarToast('Error al descargar el boleto', 'error');
+			}
+		}
+
+		// Cancelar boleto
+		async function cancelarBoleto(boletoId) {
+			if (!confirmarAccion('¿Está seguro que desea cancelar este boleto? Esta acción no se puede deshacer.')) {
+				return;
+			}
+
+			try {
+				await apiCliente.patch(`/boletos/${boletoId}/cancelar`);
+				mostrarToast('Boleto cancelado exitosamente', 'exito');
+				await cargarBoletos();
+			} catch (error) {
+				console.error('Error al cancelar boleto:', error);
+				mostrarToast(error.message || 'Error al cancelar el boleto', 'error');
+			}
+		}
+
+		// Event listeners
+		document.addEventListener('DOMContentLoaded', () => {
+			cargarBoletos();
+			
+			document.getElementById('filtroEstado').addEventListener('change', mostrarBoletos);
+		});
+
+		// Cerrar modal al hacer clic fuera
+		window.onclick = function(event) {
+			const modal = document.getElementById('modalBoleto');
+			if (event.target === modal) {
+				cerrarModal();
+			}
+		}
+	</script>
+</body>
+</html>
+

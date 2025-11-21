@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Editar Evento - Organizador</title>
+	<link rel="stylesheet" href="../../estilos/global.css">
+	<link rel="stylesheet" href="../../estilos/componentes.css">
+</head>
+<body>
+	<div id="headerContainer"></div>
+
+	<section style="padding: 60px 0;">
+		<div class="contenedor-estrecho">
+			<a href="./eventos.html" class="btn btn-secundario mb-lg">← Volver a Mis Eventos</a>
+			
+			<div id="loadingContainer" class="text-center">
+				<div class="loader"></div>
+			</div>
+
+			<div id="contenidoContainer" class="oculto">
+				<div class="tarjeta mb-lg">
+					<h1>Editar Evento</h1>
+					
+					<form id="formEvento">
+						<div class="form-grupo">
+							<label class="form-label" for="nombre">Nombre del Evento *</label>
+							<input type="text" id="nombre" class="form-input" required maxlength="200">
+						</div>
+
+						<div class="form-grupo">
+							<label class="form-label" for="descripcion">Descripción</label>
+							<textarea id="descripcion" class="form-input" rows="5"></textarea>
+						</div>
+
+						<div class="grid grid-2">
+							<div class="form-grupo">
+								<label class="form-label" for="fecha_inicio">Fecha y Hora de Inicio *</label>
+								<input type="datetime-local" id="fecha_inicio" class="form-input" required>
+							</div>
+
+							<div class="form-grupo">
+								<label class="form-label" for="fecha_fin">Fecha y Hora de Fin *</label>
+								<input type="datetime-local" id="fecha_fin" class="form-input" required>
+							</div>
+						</div>
+
+						<div class="form-grupo">
+							<label class="form-label" for="ubicacion">Ubicación *</label>
+							<input type="text" id="ubicacion" class="form-input" required maxlength="300">
+						</div>
+
+						<div class="form-grupo">
+							<label class="form-label" for="direccion">Dirección Completa</label>
+							<textarea id="direccion" class="form-input" rows="2"></textarea>
+						</div>
+
+						<div class="form-grupo">
+							<label class="form-label" for="imagen_url">URL de Imagen</label>
+							<input type="url" id="imagen_url" class="form-input">
+						</div>
+
+						<div class="form-grupo">
+							<label class="form-label" for="aforo_maximo">Aforo Máximo *</label>
+							<input type="number" id="aforo_maximo" class="form-input" required min="1">
+						</div>
+
+						<div class="form-grupo">
+							<label class="form-label" for="estado">Estado</label>
+							<select id="estado" class="form-input">
+								<option value="borrador">Borrador</option>
+								<option value="activo">Activo</option>
+								<option value="finalizado">Finalizado</option>
+								<option value="cancelado">Cancelado</option>
+							</select>
+						</div>
+
+						<div id="errorForm" class="alerta alerta-error oculto"></div>
+
+						<div style="display: flex; gap: 12px; flex-wrap: wrap;">
+							<button type="submit" class="btn btn-primario" id="btnGuardar">
+								Guardar Cambios
+							</button>
+							<a href="./eventos.html" class="btn btn-secundario">
+								Cancelar
+							</a>
+						</div>
+					</form>
+				</div>
+
+				<div class="tarjeta">
+					<h2>Categorías de Entradas</h2>
+					<div id="categoriasContainer" class="mb-lg"></div>
+					<button class="btn btn-secundario" onclick="agregarCategoria()">+ Agregar Categoría</button>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<div id="footerContainer"></div>
+
+	<script src="../../scripts/config.js"></script>
+	<script src="../../scripts/api-cliente.js"></script>
+	<script src="../../scripts/auth.js"></script>
+	<script src="../../scripts/utilidades.js"></script>
+	<script src="../../scripts/header.js"></script>
+	<script>
+		fetch('../../componentes/header.html').then(r => r.text()).then(h => document.getElementById('headerContainer').innerHTML = h);
+		fetch('../../componentes/footer.html').then(r => r.text()).then(h => document.getElementById('footerContainer').innerHTML = h);
+
+		if (!Auth.requiereRol([CONFIG.ROLES.ORGANIZADOR, CONFIG.ROLES.ADMINISTRADOR])) {}
+
+		const params = obtenerParametrosURL();
+		const eventoId = params.id;
+		let evento = null;
+
+		if (!eventoId) {
+			mostrarToast('ID de evento no especificado', 'error');
+			setTimeout(() => window.location.href = './eventos.html', 2000);
+		}
+
+		async function cargarEvento() {
+			try {
+				const response = await apiCliente.get(`/eventos/${eventoId}`);
+				evento = response.datos;
+
+				document.getElementById('nombre').value = evento.nombre;
+				document.getElementById('descripcion').value = evento.descripcion || '';
+				document.getElementById('fecha_inicio').value = evento.fecha_inicio.substring(0, 16);
+				document.getElementById('fecha_fin').value = evento.fecha_fin.substring(0, 16);
+				document.getElementById('ubicacion').value = evento.ubicacion;
+				document.getElementById('direccion').value = evento.direccion || '';
+				document.getElementById('imagen_url').value = evento.imagen_url || '';
+				document.getElementById('aforo_maximo').value = evento.aforo_maximo;
+				document.getElementById('estado').value = evento.estado;
+
+				mostrarCategorias(evento.categorias || []);
+
+				document.getElementById('loadingContainer').classList.add('oculto');
+				document.getElementById('contenidoContainer').classList.remove('oculto');
+
+			} catch (error) {
+				console.error('Error al cargar evento:', error);
+				mostrarToast('Error al cargar evento', 'error');
+				setTimeout(() => window.location.href = './eventos.html', 2000);
+			}
+		}
+
+		function mostrarCategorias(categorias) {
+			const contenedor = document.getElementById('categoriasContainer');
+			if (categorias.length === 0) {
+				contenedor.innerHTML = '<p style="color: var(--color-gris-medio);">No hay categorías de entradas. Agrega una para empezar a vender boletos.</p>';
+				return;
+			}
+
+			contenedor.innerHTML = categorias.map(cat => `
+				<div class="tarjeta mb-md" style="background: var(--color-fondo);">
+					<h4>${cat.nombre}</h4>
+					<p style="color: var(--color-gris-medio); margin-bottom: 8px;">${cat.descripcion || ''}</p>
+					<div style="display: flex; gap: 16px; flex-wrap: wrap;">
+						<div><strong>Precio:</strong> ${formatearPrecio(cat.precio)}</div>
+						<div><strong>Disponibles:</strong> ${cat.cantidad_disponible}</div>
+						<div><strong>Vendidos:</strong> ${cat.cantidad_vendida || 0}</div>
+					</div>
+				</div>
+			`).join('');
+		}
+
+		function agregarCategoria() {
+			const nombre = prompt('Nombre de la categoría (ej: VIP, General):');
+			if (!nombre) return;
+
+			const precio = prompt('Precio:');
+			if (!precio) return;
+
+			const cantidad = prompt('Cantidad disponible:');
+			if (!cantidad) return;
+
+			const descripcion = prompt('Descripción (opcional):') || '';
+
+			crearCategoria(nombre, parseFloat(precio), parseInt(cantidad), descripcion);
+		}
+
+		async function crearCategoria(nombre, precio, cantidad, descripcion) {
+			try {
+				await apiCliente.post('/categorias', {
+					evento_id: eventoId,
+					nombre,
+					precio,
+					cantidad_disponible: cantidad,
+					descripcion
+				});
+
+				mostrarToast('Categoría creada exitosamente', 'exito');
+				await cargarEvento();
+
+			} catch (error) {
+				console.error('Error al crear categoría:', error);
+				mostrarToast(error.message || 'Error al crear categoría', 'error');
+			}
+		}
+
+		document.getElementById('formEvento').addEventListener('submit', async (e) => {
+			e.preventDefault();
+
+			const datos = {
+				nombre: document.getElementById('nombre').value.trim(),
+				descripcion: document.getElementById('descripcion').value.trim(),
+				fecha_inicio: document.getElementById('fecha_inicio').value,
+				fecha_fin: document.getElementById('fecha_fin').value,
+				ubicacion: document.getElementById('ubicacion').value.trim(),
+				direccion: document.getElementById('direccion').value.trim() || null,
+				imagen_url: document.getElementById('imagen_url').value.trim() || null,
+				aforo_maximo: parseInt(document.getElementById('aforo_maximo').value),
+				estado: document.getElementById('estado').value
+			};
+
+			const btnGuardar = document.getElementById('btnGuardar');
+			const errorDiv = document.getElementById('errorForm');
+			errorDiv.classList.add('oculto');
+
+			try {
+				btnGuardar.disabled = true;
+				btnGuardar.textContent = 'Guardando...';
+
+				await apiCliente.put(`/eventos/${eventoId}`, datos);
+				mostrarToast('Evento actualizado exitosamente', 'exito');
+				await cargarEvento();
+
+			} catch (error) {
+				console.error('Error al actualizar evento:', error);
+				errorDiv.textContent = error.message || 'Error al actualizar evento';
+				errorDiv.classList.remove('oculto');
+			} finally {
+				btnGuardar.disabled = false;
+				btnGuardar.textContent = 'Guardar Cambios';
+			}
+		});
+
+		document.addEventListener('DOMContentLoaded', cargarEvento);
+	</script>
+</body>
+</html>
+

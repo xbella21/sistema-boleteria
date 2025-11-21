@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Gestión de Usuarios - Admin</title>
+	<link rel="stylesheet" href="../../estilos/global.css">
+	<link rel="stylesheet" href="../../estilos/componentes.css">
+</head>
+<body>
+	<div id="headerContainer"></div>
+
+	<section style="padding: 60px 0;">
+		<div class="contenedor">
+			<h1>Gestión de Usuarios</h1>
+
+			<div class="tarjeta mb-lg">
+				<div style="display: flex; gap: 16px; flex-wrap: wrap;">
+					<input type="text" id="busqueda" class="form-input" placeholder="Buscar por nombre o email..." style="flex: 1; min-width: 250px;">
+					<select id="filtroRol" class="form-input" style="max-width: 200px;">
+						<option value="">Todos los roles</option>
+						<option value="administrador">Administrador</option>
+						<option value="organizador">Organizador</option>
+						<option value="taquilla">Taquilla</option>
+						<option value="asistente">Asistente</option>
+					</select>
+				</div>
+			</div>
+
+			<div id="usuariosContainer"><div class="loader"></div></div>
+		</div>
+	</section>
+
+	<div id="footerContainer"></div>
+
+	<script src="../../scripts/config.js"></script>
+	<script src="../../scripts/api-cliente.js"></script>
+	<script src="../../scripts/auth.js"></script>
+	<script src="../../scripts/utilidades.js"></script>
+	<script src="../../scripts/header.js"></script>
+	<script>
+		fetch('../../componentes/header.html').then(r => r.text()).then(h => document.getElementById('headerContainer').innerHTML = h);
+		fetch('../../componentes/footer.html').then(r => r.text()).then(h => document.getElementById('footerContainer').innerHTML = h);
+
+		if (!Auth.requiereRol(CONFIG.ROLES.ADMINISTRADOR)) {}
+
+		let usuarios = [];
+
+		async function cargarUsuarios() {
+			try {
+				const response = await apiCliente.get('/usuarios');
+				usuarios = response.datos.datos || response.datos || [];
+				mostrarUsuarios();
+			} catch (error) {
+				console.error('Error al cargar usuarios:', error);
+				document.getElementById('usuariosContainer').innerHTML = '<div class="alerta alerta-error">Error al cargar usuarios</div>';
+			}
+		}
+
+		function mostrarUsuarios() {
+			const busqueda = document.getElementById('busqueda').value.toLowerCase();
+			const rol = document.getElementById('filtroRol').value;
+
+			let usuariosFiltrados = usuarios.filter(u => {
+				const coincideBusqueda = !busqueda || 
+					u.nombre.toLowerCase().includes(busqueda) || 
+					u.apellido.toLowerCase().includes(busqueda) || 
+					u.email.toLowerCase().includes(busqueda);
+				const coincideRol = !rol || u.rol === rol;
+				return coincideBusqueda && coincideRol;
+			});
+
+			const contenedor = document.getElementById('usuariosContainer');
+			if (usuariosFiltrados.length === 0) {
+				contenedor.innerHTML = '<div class="tarjeta text-center"><p>No se encontraron usuarios</p></div>';
+				return;
+			}
+
+			const rolColors = {
+				administrador: 'background: var(--color-error); color: white;',
+				organizador: 'background: var(--color-primario); color: white;',
+				taquilla: 'background: var(--color-advertencia); color: white;',
+				asistente: 'background: var(--color-secundario); color: white;'
+			};
+
+			contenedor.innerHTML = usuariosFiltrados.map(usuario => `
+				<div class="tarjeta mb-md">
+					<div style="display: flex; justify-content: space-between; align-items: start; gap: 16px; flex-wrap: wrap;">
+						<div style="flex: 1;">
+							<h3 style="margin-bottom: 8px;">${usuario.nombre} ${usuario.apellido}</h3>
+							<div style="color: var(--color-gris-medio); margin-bottom: 4px;">📧 ${usuario.email}</div>
+							${usuario.telefono ? `<div style="color: var(--color-gris-medio); margin-bottom: 4px;">📞 ${usuario.telefono}</div>` : ''}
+							<div style="margin-top: 8px;">
+								<span style="padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 600; ${rolColors[usuario.rol]}">
+									${usuario.rol.toUpperCase()}
+								</span>
+								<span style="padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 600; ${usuario.activo ? 'background: var(--color-secundario);' : 'background: var(--color-error);'} color: white; margin-left: 8px;">
+									${usuario.activo ? 'ACTIVO' : 'INACTIVO'}
+								</span>
+							</div>
+						</div>
+						<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+							<button class="btn btn-secundario btn-sm" onclick="cambiarRol('${usuario.id}', '${usuario.nombre}', '${usuario.rol}')">Cambiar Rol</button>
+							<button class="btn ${usuario.activo ? 'btn-advertencia' : 'btn-secundario'} btn-sm" onclick="toggleActivo('${usuario.id}', ${usuario.activo})">
+								${usuario.activo ? 'Desactivar' : 'Activar'}
+							</button>
+						</div>
+					</div>
+				</div>
+			`).join('');
+		}
+
+		async function cambiarRol(usuarioId, nombre, rolActual) {
+			const nuevoRol = prompt(`Cambiar rol de ${nombre}:\n\nadministrador\norganizador\ntaquilla\nasistente\n\nRol actual: ${rolActual}\nNuevo rol:`, rolActual);
+			if (!nuevoRol || nuevoRol === rolActual) return;
+
+			const roles = ['administrador', 'organizador', 'taquilla', 'asistente'];
+			if (!roles.includes(nuevoRol)) {
+				mostrarToast('Rol inválido', 'error');
+				return;
+			}
+
+			try {
+				await apiCliente.put(`/usuarios/${usuarioId}`, { rol: nuevoRol });
+				mostrarToast('Rol actualizado exitosamente', 'exito');
+				await cargarUsuarios();
+			} catch (error) {
+				console.error('Error:', error);
+				mostrarToast(error.message || 'Error al cambiar rol', 'error');
+			}
+		}
+
+		async function toggleActivo(usuarioId, estadoActual) {
+			try {
+				await apiCliente.put(`/usuarios/${usuarioId}`, { activo: !estadoActual });
+				mostrarToast('Estado actualizado exitosamente', 'exito');
+				await cargarUsuarios();
+			} catch (error) {
+				console.error('Error:', error);
+				mostrarToast(error.message || 'Error al cambiar estado', 'error');
+			}
+		}
+
+		document.addEventListener('DOMContentLoaded', () => {
+			cargarUsuarios();
+			document.getElementById('busqueda').addEventListener('input', debounce(mostrarUsuarios, 300));
+			document.getElementById('filtroRol').addEventListener('change', mostrarUsuarios);
+		});
+	</script>
+</body>
+</html>
+

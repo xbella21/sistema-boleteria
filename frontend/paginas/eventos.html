@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Eventos - Sistema de Gestión de Eventos</title>
+	<link rel="stylesheet" href="../estilos/global.css">
+	<link rel="stylesheet" href="../estilos/componentes.css">
+</head>
+<body>
+	<div id="headerContainer"></div>
+
+	<section style="padding: 60px 0;">
+		<div class="contenedor">
+			<h1>Eventos Disponibles</h1>
+			
+			<!-- Barra de búsqueda y filtros -->
+			<div class="tarjeta mb-lg">
+				<div style="display: flex; gap: 16px; flex-wrap: wrap;">
+					<input 
+						type="text" 
+						id="busqueda" 
+						class="form-input" 
+						placeholder="Buscar eventos..."
+						style="flex: 1; min-width: 250px;">
+					<select id="filtroEstado" class="form-input" style="max-width: 200px;">
+						<option value="">Todos los eventos</option>
+						<option value="activo">Activos</option>
+						<option value="finalizado">Finalizados</option>
+					</select>
+				</div>
+			</div>
+
+			<!-- Mensajes -->
+			<div id="mensajeContainer"></div>
+
+			<!-- Grid de eventos -->
+			<div id="eventosContainer" class="grid grid-auto">
+				<div class="loader"></div>
+			</div>
+
+			<!-- Paginación -->
+			<div id="paginacionContainer" class="text-center mt-xl"></div>
+		</div>
+	</section>
+
+	<div id="footerContainer"></div>
+
+	<script src="../scripts/config.js"></script>
+	<script src="../scripts/api-cliente.js"></script>
+	<script src="../scripts/auth.js"></script>
+	<script src="../scripts/utilidades.js"></script>
+	<script src="../scripts/header.js"></script>
+	<script>
+		// Cargar componentes
+		fetch('../componentes/header.html').then(r => r.text()).then(h => document.getElementById('headerContainer').innerHTML = h);
+		fetch('../componentes/footer.html').then(r => r.text()).then(h => document.getElementById('footerContainer').innerHTML = h);
+
+		// Variables
+		let paginaActual = 1;
+		let totalPaginas = 1;
+
+		// Cargar eventos
+		async function cargarEventos() {
+			try {
+				const busqueda = document.getElementById('busqueda').value;
+				const estado = document.getElementById('filtroEstado').value;
+				
+				let endpoint = '/eventos/activos?pagina=' + paginaActual + '&limite=12';
+				
+				if (busqueda) {
+					endpoint = '/eventos/buscar?termino=' + encodeURIComponent(busqueda);
+				} else if (estado) {
+					endpoint = '/eventos?estado=' + estado + '&pagina=' + paginaActual + '&limite=12';
+				}
+
+				const response = await apiCliente.get(endpoint);
+				const contenedor = document.getElementById('eventosContainer');
+				const mensajeContainer = document.getElementById('mensajeContainer');
+				
+				mensajeContainer.innerHTML = '';
+
+				let eventos = response.datos;
+				
+				// Si la respuesta tiene paginación
+				if (response.datos.datos) {
+					eventos = response.datos.datos;
+					totalPaginas = response.datos.totalPaginas || 1;
+					renderizarPaginacion();
+				}
+
+				if (eventos && eventos.length > 0) {
+					contenedor.innerHTML = eventos.map(evento => `
+						<div class="tarjeta-evento" onclick="window.location.href='./evento-detalle.html?id=${evento.id}'">
+							<img src="${evento.imagen_url || 'https://via.placeholder.com/400x250/2B6CB0/ffffff?text=Evento'}" 
+								 alt="${evento.nombre}" 
+								 class="tarjeta-evento-imagen"
+								 style="width: 100%; height: 200px; object-fit: cover; border-radius: 8px 8px 0 0;">
+							<div class="tarjeta-evento-contenido">
+								<h3 class="tarjeta-evento-titulo">${evento.nombre}</h3>
+								<div class="tarjeta-evento-fecha" style="color: var(--color-primario); margin-bottom: 8px;">
+									📅 ${formatearFecha(evento.fecha_inicio)}
+								</div>
+								<div class="tarjeta-evento-ubicacion" style="color: var(--color-gris-medio); margin-bottom: 12px;">
+									📍 ${evento.ubicacion}
+								</div>
+								<p class="tarjeta-evento-descripcion" style="color: var(--color-gris-oscuro); margin-bottom: 16px;">
+									${truncarTexto(evento.descripcion || 'Sin descripción', 120)}
+								</p>
+								<div style="display: flex; justify-content: space-between; align-items: center;">
+									<div style="font-size: 14px; color: var(--color-gris-medio);">
+										${evento.aforo_actual || 0} / ${evento.aforo_maximo} asistentes
+									</div>
+									<button class="btn btn-primario btn-sm" onclick="event.stopPropagation(); window.location.href='./evento-detalle.html?id=${evento.id}'">
+										Ver Detalles
+									</button>
+								</div>
+							</div>
+						</div>
+					`).join('');
+				} else {
+					contenedor.innerHTML = '<div class="tarjeta text-center"><p>No se encontraron eventos.</p></div>';
+				}
+
+			} catch (error) {
+				console.error('Error al cargar eventos:', error);
+				document.getElementById('eventosContainer').innerHTML = 
+					'<div class="alerta alerta-error">Error al cargar eventos. Por favor, intente nuevamente.</div>';
+			}
+		}
+
+		// Renderizar paginación
+		function renderizarPaginacion() {
+			const contenedor = document.getElementById('paginacionContainer');
+			if (totalPaginas <= 1) {
+				contenedor.innerHTML = '';
+				return;
+			}
+
+			let html = '<div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">';
+			
+			// Botón anterior
+			if (paginaActual > 1) {
+				html += `<button class="btn btn-secundario btn-sm" onclick="cambiarPagina(${paginaActual - 1})">← Anterior</button>`;
+			}
+
+			// Números de página
+			for (let i = 1; i <= totalPaginas; i++) {
+				if (i === paginaActual) {
+					html += `<button class="btn btn-primario btn-sm" disabled>${i}</button>`;
+				} else if (i === 1 || i === totalPaginas || (i >= paginaActual - 2 && i <= paginaActual + 2)) {
+					html += `<button class="btn btn-secundario btn-sm" onclick="cambiarPagina(${i})">${i}</button>`;
+				} else if (i === paginaActual - 3 || i === paginaActual + 3) {
+					html += '<span style="padding: 8px;">...</span>';
+				}
+			}
+
+			// Botón siguiente
+			if (paginaActual < totalPaginas) {
+				html += `<button class="btn btn-secundario btn-sm" onclick="cambiarPagina(${paginaActual + 1})">Siguiente →</button>`;
+			}
+
+			html += '</div>';
+			contenedor.innerHTML = html;
+		}
+
+		// Cambiar página
+		function cambiarPagina(pagina) {
+			paginaActual = pagina;
+			cargarEventos();
+			scrollSuave('eventosContainer');
+		}
+
+		// Búsqueda con debounce
+		const busquedaDebounced = debounce(() => {
+			paginaActual = 1;
+			cargarEventos();
+		}, 500);
+
+		// Event listeners
+		document.addEventListener('DOMContentLoaded', () => {
+			cargarEventos();
+			
+			document.getElementById('busqueda').addEventListener('input', busquedaDebounced);
+			document.getElementById('filtroEstado').addEventListener('change', () => {
+				paginaActual = 1;
+				cargarEventos();
+			});
+		});
+	</script>
+</body>
+</html>
+

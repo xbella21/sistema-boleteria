@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Escanear Boletos - Taquilla</title>
+	<link rel="stylesheet" href="../../estilos/global.css">
+	<link rel="stylesheet" href="../../estilos/componentes.css">
+</head>
+<body>
+	<div id="headerContainer"></div>
+
+	<section style="padding: 60px 0;">
+		<div class="contenedor-estrecho">
+			<h1>Escanear Boletos</h1>
+
+			<div class="tarjeta mb-lg">
+				<h2>Validar Código QR</h2>
+				<p style="color: var(--color-gris-medio); margin-bottom: 16px;">
+					Ingresa el código del boleto o escanea el código QR
+				</p>
+
+				<form id="formValidar" style="display: flex; gap: 12px;">
+					<input 
+						type="text" 
+						id="codigoQR" 
+						class="form-input" 
+						placeholder="Código del boleto"
+						style="flex: 1;"
+						autocomplete="off"
+						autofocus>
+					<button type="submit" class="btn btn-primario">Validar</button>
+				</form>
+			</div>
+
+			<div id="resultadoContainer"></div>
+		</div>
+	</section>
+
+	<div id="footerContainer"></div>
+
+	<script src="../../scripts/config.js"></script>
+	<script src="../../scripts/api-cliente.js"></script>
+	<script src="../../scripts/auth.js"></script>
+	<script src="../../scripts/utilidades.js"></script>
+	<script src="../../scripts/header.js"></script>
+	<script>
+		fetch('../../componentes/header.html').then(r => r.text()).then(h => document.getElementById('headerContainer').innerHTML = h);
+		fetch('../../componentes/footer.html').then(r => r.text()).then(h => document.getElementById('footerContainer').innerHTML = h);
+
+		if (!Auth.requiereRol([CONFIG.ROLES.TAQUILLA, CONFIG.ROLES.ADMINISTRADOR])) {}
+
+		document.getElementById('formValidar').addEventListener('submit', async (e) => {
+			e.preventDefault();
+
+			const codigoQR = document.getElementById('codigoQR').value.trim();
+			const resultadoContainer = document.getElementById('resultadoContainer');
+
+			if (!codigoQR) {
+				resultadoContainer.innerHTML = '<div class="alerta alerta-advertencia">Por favor ingrese un código</div>';
+				return;
+			}
+
+			resultadoContainer.innerHTML = '<div class="text-center"><div class="loader"></div></div>';
+
+			try {
+				const response = await apiCliente.post('/taquilla/validar', { codigo_qr: codigoQR });
+				const boleto = response.datos;
+
+				if (boleto.estado === 'valido') {
+					resultadoContainer.innerHTML = `
+						<div class="tarjeta" style="border: 3px solid var(--color-secundario); background: #f0fdf4;">
+							<div style="text-align: center; margin-bottom: 24px;">
+								<div style="font-size: 64px; color: var(--color-secundario);">✓</div>
+								<h2 style="color: var(--color-secundario); margin: 0;">BOLETO VÁLIDO</h2>
+							</div>
+
+							<div style="background: white; padding: 20px; border-radius: 8px;">
+								<h3>${boleto.evento_nombre}</h3>
+								<hr style="margin: 12px 0; border: none; border-top: 1px solid var(--color-gris-claro);">
+								<div style="margin-bottom: 8px;"><strong>Asistente:</strong> ${boleto.usuario_nombre}</div>
+								<div style="margin-bottom: 8px;"><strong>Categoría:</strong> ${boleto.categoria_nombre}</div>
+								<div style="margin-bottom: 8px;"><strong>Fecha evento:</strong> ${formatearFecha(boleto.evento_fecha_inicio)}</div>
+								<div style="margin-bottom: 8px;"><strong>Precio pagado:</strong> ${formatearPrecio(boleto.precio_pagado)}</div>
+								<div style="margin-bottom: 16px;"><strong>Código:</strong> <code style="background: var(--color-gris-claro); padding: 4px 8px; border-radius: 4px;">${boleto.codigo_qr}</code></div>
+								<button class="btn btn-primario btn-block" onclick="registrarIngreso('${boleto.id}', '${boleto.evento_id}')">
+									Registrar Ingreso
+								</button>
+							</div>
+						</div>
+					`;
+				} else if (boleto.estado === 'usado') {
+					resultadoContainer.innerHTML = `
+						<div class="tarjeta" style="border: 3px solid var(--color-advertencia); background: #fffbeb;">
+							<div style="text-align: center; margin-bottom: 24px;">
+								<div style="font-size: 64px; color: var(--color-advertencia);">⚠️</div>
+								<h2 style="color: var(--color-advertencia); margin: 0;">BOLETO YA USADO</h2>
+							</div>
+							<div style="background: white; padding: 20px; border-radius: 8px;">
+								<p>Este boleto ya fue utilizado para ingresar al evento.</p>
+								<div style="margin-top: 12px;"><strong>Fecha de uso:</strong> ${formatearFecha(boleto.fecha_uso)}</div>
+							</div>
+						</div>
+					`;
+				} else {
+					resultadoContainer.innerHTML = `
+						<div class="tarjeta" style="border: 3px solid var(--color-error); background: #fef2f2;">
+							<div style="text-align: center; margin-bottom: 24px;">
+								<div style="font-size: 64px; color: var(--color-error);">✗</div>
+								<h2 style="color: var(--color-error); margin: 0;">BOLETO CANCELADO</h2>
+							</div>
+							<div style="background: white; padding: 20px; border-radius: 8px;">
+								<p>Este boleto ha sido cancelado y no es válido para el ingreso.</p>
+							</div>
+						</div>
+					`;
+				}
+
+			} catch (error) {
+				console.error('Error al validar boleto:', error);
+				resultadoContainer.innerHTML = `
+					<div class="tarjeta" style="border: 3px solid var(--color-error); background: #fef2f2;">
+						<div style="text-align: center; margin-bottom: 24px;">
+							<div style="font-size: 64px; color: var(--color-error);">✗</div>
+							<h2 style="color: var(--color-error); margin: 0;">CÓDIGO INVÁLIDO</h2>
+						</div>
+						<div style="background: white; padding: 20px; border-radius: 8px;">
+							<p>${error.message || 'El código ingresado no es válido o no existe en el sistema.'}</p>
+						</div>
+					</div>
+				`;
+			}
+
+			document.getElementById('codigoQR').value = '';
+			document.getElementById('codigoQR').focus();
+		});
+
+		async function registrarIngreso(boletoId, eventoId) {
+			try {
+				await apiCliente.post('/taquilla/registrar-ingreso', {
+					boleto_id: boletoId,
+					evento_id: eventoId
+				});
+
+				document.getElementById('resultadoContainer').innerHTML = `
+					<div class="tarjeta" style="border: 3px solid var(--color-secundario); background: #f0fdf4;">
+						<div style="text-align: center;">
+							<div style="font-size: 64px; color: var(--color-secundario);">✓</div>
+							<h2 style="color: var(--color-secundario);">INGRESO REGISTRADO</h2>
+							<p>El asistente ha sido registrado exitosamente</p>
+						</div>
+					</div>
+				`;
+
+				mostrarToast('Ingreso registrado exitosamente', 'exito');
+
+			} catch (error) {
+				console.error('Error al registrar ingreso:', error);
+				mostrarToast(error.message || 'Error al registrar ingreso', 'error');
+			}
+		}
+	</script>
+</body>
+</html>
+
