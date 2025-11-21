@@ -244,6 +244,37 @@ async function obtenerUsuariosPorRol(rol) {
 }
 
 /**
+ * Obtener total de usuarios
+ * @returns {Promise<number>} - Total de usuarios
+ */
+async function obtenerTotalUsuarios() {
+	try {
+		const clienteAdmin = supabaseAdmin || supabase;
+		console.log('obtenerTotalUsuarios - clienteAdmin:', clienteAdmin ? 'existe' : 'no existe');
+		
+		const { count, error, data } = await clienteAdmin
+			.from('usuarios')
+			.select('*', { count: 'exact', head: true });
+
+		console.log('obtenerTotalUsuarios - count:', count);
+		console.log('obtenerTotalUsuarios - error:', error);
+		console.log('obtenerTotalUsuarios - data:', data);
+
+		if (error) {
+			console.error('Error en consulta obtenerTotalUsuarios:', error);
+			throw error;
+		}
+		
+		const total = count !== null && count !== undefined ? count : 0;
+		console.log('obtenerTotalUsuarios - total final:', total);
+		return total;
+	} catch (error) {
+		console.error('Error al obtener total de usuarios:', error);
+		throw new Error(MENSAJES_ERROR[CODIGOS_ERROR.ERROR_BASE_DATOS]);
+	}
+}
+
+/**
  * Cambiar estado activo/inactivo de un usuario
  * @param {string} id - ID del usuario
  * @param {boolean} activo - Estado activo
@@ -278,6 +309,7 @@ module.exports = {
 	actualizarUsuario,
 	eliminarUsuario,
 	obtenerUsuariosPorRol,
-	cambiarEstadoUsuario
+	cambiarEstadoUsuario,
+	obtenerTotalUsuarios
 };
 

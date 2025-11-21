@@ -5,6 +5,7 @@
 
 const servicioEventos = require('../servicios/servicio-eventos');
 const servicioBoletos = require('../servicios/servicio-boletos');
+const servicioUsuarios = require('../servicios/servicio-usuarios');
 const { generarReporteVentasPDF } = require('../utils/generador-pdf');
 const { generarReporteAsistentesExcel, generarReporteVentasExcel } = require('../utils/generador-excel');
 const { ErrorNoEncontrado } = require('../middlewares/manejo-errores');
@@ -174,6 +175,11 @@ async function obtenerDashboard(req, res) {
 		const eventosResult = await servicioEventos.obtenerEventos({ pagina: 1, limite: 1000 });
 		const eventos = eventosResult.eventos;
 
+		// Obtener total de usuarios
+		const totalUsuarios = await servicioUsuarios.obtenerTotalUsuarios();
+		console.log('Dashboard - totalUsuarios recibido:', totalUsuarios);
+		console.log('Dashboard - tipo de totalUsuarios:', typeof totalUsuarios);
+
 		// Calcular métricas generales
 		const totalEventos = eventos.length;
 		const eventosActivos = eventos.filter(e => e.estado === 'activo').length;
@@ -193,9 +199,13 @@ async function obtenerDashboard(req, res) {
 			aforoTotalMaximo += evento.aforo_maximo || 0;
 		}
 
-		return res.json({
+		const respuesta = {
 			exito: true,
 			datos: {
+				total_eventos: totalEventos,
+				total_usuarios: totalUsuarios,
+				total_boletos: totalBoletos,
+				ingresos_totales: ingresosTotales.toFixed(2),
 				eventos: {
 					total: totalEventos,
 					activos: eventosActivos,
@@ -213,7 +223,12 @@ async function obtenerDashboard(req, res) {
 						: 0
 				}
 			}
-		});
+		};
+		
+		console.log('Dashboard - respuesta completa:', JSON.stringify(respuesta, null, 2));
+		console.log('Dashboard - total_usuarios en respuesta:', respuesta.datos.total_usuarios);
+		
+		return res.json(respuesta);
 
 	} catch (error) {
 		console.error('Error al obtener dashboard:', error);

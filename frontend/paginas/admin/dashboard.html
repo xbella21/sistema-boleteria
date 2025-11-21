@@ -76,6 +76,10 @@
 				const response = await apiCliente.get('/reportes/dashboard');
 				const datos = response.datos;
 
+				console.log('Respuesta del dashboard:', response);
+				console.log('Datos recibidos:', datos);
+				console.log('Total usuarios:', datos.total_usuarios);
+
 				document.getElementById('totalEventos').textContent = datos.total_eventos || 0;
 				document.getElementById('totalUsuarios').textContent = datos.total_usuarios || 0;
 				document.getElementById('totalBoletos').textContent = datos.total_boletos || 0;
